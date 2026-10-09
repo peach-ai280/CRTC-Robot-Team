@@ -26,7 +26,8 @@ const Params kDefaultParams = {
     /* --- 速度增益 -------------------------------------------------------- */
     0.85f,              /* gainForward */
     0.85f,              /* gainStrafe  ⚠ 必须和 gainForward 相等 */
-    0.45f,              /* gainYaw     自转最容易打滑，给小一点 */
+    0.45f,              /* gainYaw     A 车麦轮自转，最容易打滑，给小一点 */
+    0.60f,              /* gainYawDiff B 车差速自转（= config.h 的 SPEED_GAIN_YAW_DIFF） */
 
     /* --- 加速度斜坡（防滑） --------------------------------------------- */
     3.0f,               /* accUp      起步慢一点，防打滑 */

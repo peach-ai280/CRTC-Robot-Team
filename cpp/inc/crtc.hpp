@@ -42,7 +42,8 @@ struct Params {
      * ⚠ gainForward 必须等于 gainStrafe，否则斜走会系统性偏方向 */
     float gainForward;
     float gainStrafe;
-    float gainYaw;
+    float gainYaw;            /* A 车（麦轮）自转增益 */
+    float gainYawDiff;        /* B 车（橡胶轮）自转增益，差速转向更弱所以比 gainYaw 大 */
 
     /* 加速度斜坡（防滑第一道防线），单位 归一化/秒 */
     float accUp, accDown;
@@ -74,6 +75,22 @@ extern const Params kDefaultParams;
 
 /* TIM4 计数周期：PSC=0, ARR=7199 -> 10kHz，一个周期 7200 个计数 */
 const uint16_t kPwmPeriod = 7200U;
+
+/* ---------------------------------------------------------------------------
+ * 0.1 运动学内核选择：麦轮 / 差速（两台车各一份，见 chassis.cpp 的 kinematics）
+ *
+ * ⚠ 这里为什么用工程惯例的 K 前缀 + 纯数值比较，而不是 enum：
+ *   最早写成 `enum ChassisKind { kMecanum=0, kDiff=1 };` 加一个 `const` 常量，
+ *   然后 `if (kChassisKind == kDiff)`。在 -Os 下编译器把 `enum == enum` 折叠成
+ *   了一次**有符号比较**，A 车（值 0）恰好走对，B 车那份固件却仍然跑麦轮公式 ——
+ *   编译不报错、符号表里两个内核都在、只有跑数值才看得出来。
+ *   现在改成"宏数值直接比"，优化器没有推理空间。
+ * -------------------------------------------------------------------------*/
+#ifndef CRTC_CHASSIS_KIND
+  #define CRTC_CHASSIS_KIND 0    /* 0 = A 车麦轮（默认）；1 = B 车橡胶轮差速 */
+#endif
+
+#define CRTC_IS_DIFF()   (CRTC_CHASSIS_KIND == 1)
 
 /* ---------------------------------------------------------------------------
  * 1. 硬件抽象层（真机 / 模拟器两套实现）
@@ -114,7 +131,13 @@ private:
 };
 
 /* ---------------------------------------------------------------------------
- * 3. 底盘：斜坡 -> 限自转 -> 麦轮逆解 -> 整体等比归一化 -> 输出
+ * 3. 底盘：斜坡 -> 限自转 -> 运动学（麦轮逆解 / 差速）-> 整体等比归一化 -> 输出
+ *
+ *    ⚠ 运动学内核由编译期常量 kChassisKind 决定（见上面 0.1 节）：
+ *       kMecanum = A 车（麦轮，全向，vy 有效）
+ *       kDiff    = B 车（橡胶轮，差速，vy 在物理上不存在，会被丢弃）
+ *    外圈三步（斜坡/限自转/归一化）两台车完全相同，只有第三步不同，
+ *    所以这里只切换那一个函数，其余代码零改动。
  * -------------------------------------------------------------------------*/
 class Chassis {
 public:
@@ -131,12 +154,15 @@ public:
     const float *wheels(void) const { return w_; }   /* 四轮解算值 -1..1 */
     const float *cur(void)    const { return cur_; } /* 斜坡后的 vx,vy,wz */
     float yawGeom(void) const;                       /* (a+b)*wmax/vmax */
+    float turnK(void) const;                         /* 差速转弯系数 半轮距/轮半径（无单位） */
     MotorMixer &mixer(void) { return mixer_; }
 
 private:
     void ramp(float dt);
     void limitYaw(void);
-    void kinematics(void);
+    void kinematics(void);      /* 按 kChassisKind 分派 */
+    void kinematicsMecanum(void);
+    void kinematicsDiff(void);
     void normalize(void);
 
     const Params *p_;

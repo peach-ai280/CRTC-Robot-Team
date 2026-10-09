@@ -32,9 +32,34 @@
 #include "board.h"
 #include "config.h"
 #include "mecanum.h"
+#include "chassis_diff.h"
 #include "motor.h"
 #include "sensor.h"
 #include <stdio.h>
+
+/* ============================================================================
+ * 【A 车 / B 车 用同一个测试固件】
+ *   config.h 里 CHASSIS_TYPE 决定编译进哪一套运动学：
+ *     CHASSIS_TYPE_MECANUM (0)  -> Chassis_*  （1 号车，麦轮，能横移）
+ *     CHASSIS_TYPE_DIFF    (1)  -> Diff_*     （2 号车，橡胶轮，只能前后+转）
+ *   两边接口同形，所以下面的 main 一个字都不用改。
+ *
+ * ⚠ 切 B 车后，手柄的"横移"那一档会失效（物理上就不存在），
+ *   串口测试时按 a/d 会**没有反应**，这不是 bug，是橡胶轮的物理限制。
+ * ==========================================================================*/
+#if (CHASSIS_TYPE == CHASSIS_TYPE_DIFF)
+  #define CAR_INIT()        Diff_Init()
+  #define CAR_SET(vx,vy,wz) Diff_SetTarget((vx),(vy),(wz))
+  #define CAR_UPDATE(dt)    Diff_Update(dt)
+  #define CAR_GETWHEEL(w)   Diff_GetWheel(w)
+  #define CAR_NAME          "B-DIFF (rubber wheels, tank steer)"
+#else
+  #define CAR_INIT()        Chassis_Init()
+  #define CAR_SET(vx,vy,wz) Chassis_SetTarget((vx),(vy),(wz))
+  #define CAR_UPDATE(dt)    Chassis_Update(dt)
+  #define CAR_GETWHEEL(w)   Chassis_GetWheel(w)
+  #define CAR_NAME          "A-MECANUM (rollers, omni)"
+#endif
 
 static volatile char g_cmd = 0;
 static float g_throttle = 1.0f;
@@ -81,9 +106,10 @@ int main(void)
     BSP_USART1_Init();
 
     Sensor_Init();
-    Chassis_Init();
+    CAR_INIT();
 
     printf("\r\n==== MOTION TEST ====\r\n");
+    printf("CHASSIS = %s\r\n", CAR_NAME);
     printf("SYSCLK = %lu Hz\r\n", SystemCoreClock);
     printf("cmds: w/s=fwd/back  a/d=strafe  q/e=yaw  z=diag  space=stop  r=demo  +/- =throttle\r\n");
 
@@ -123,8 +149,8 @@ int main(void)
 
             if (g_demo) demo_cmd(now, &vx, &vy, &wz);
 
-            Chassis_SetTarget(vx, vy, wz);
-            Chassis_Update(dt);
+            CAR_SET(vx, vy, wz);
+            CAR_UPDATE(dt);
         }
 
         /* ---- 200ms 打印 ---- */
@@ -132,7 +158,7 @@ int main(void)
         {
             t_log = now;
             float w[4];
-            Chassis_GetWheel(w);
+            CAR_GETWHEEL(w);
             printf("cmd(%+.2f,%+.2f,%+.2f) wheel[%+.2f %+.2f %+.2f %+.2f] duty[%.2f %.2f %.2f %.2f] vbat=%.2f %s\r\n",
                    vx, vy, wz, w[0], w[1], w[2], w[3],
                    Motor_GetDuty(0), Motor_GetDuty(1), Motor_GetDuty(2), Motor_GetDuty(3),

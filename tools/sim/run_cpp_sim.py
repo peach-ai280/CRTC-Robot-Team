@@ -7,7 +7,11 @@ arm.cpp、vision.cpp 编成真正的 ARM 机器码，让模拟器去执行，再
 出来的日志读回来。测的东西比 C 版多：连机构序列耗时和视觉帧解析一起测。
 
 用法：
-    python tools/sim/run_cpp_sim.py
+    python tools/sim/run_cpp_sim.py        # 测 A 车（麦轮）内核
+    python tools/sim/run_cpp_sim.py b      # 测 B 车（橡胶轮差速）内核
+
+  跑 B 车之前先编：python tools/build_cpp.py b  （真机固件）
+                    python tools/build_cpp.py sim_b （模拟器固件）
 """
 
 import os
@@ -48,13 +52,23 @@ def symbols(elf):
 
 
 def main():
-    elf = os.path.join(CPP, 'build', 'sim', 'sim.elf')
+    # ★ 支持指定车型：python tools/sim/run_cpp_sim.py a|b
+    #   -Os 会把"编译期常量条件"彻底折掉，所以差速内核必须用**单独编出来的**
+    #   sim_b/sim.elf 去测；在 A 车那份 sim.elf 上无论怎么调都是麦轮公式。
+    kind = sys.argv[1].lower() if len(sys.argv) > 1 else 'a'
+    if kind not in ('a', 'b'):
+        print('用法: python tools/sim/run_cpp_sim.py [a|b]')
+        return 1
+    sub = 'sim' if kind == 'a' else 'sim_b'
+
+    elf = os.path.join(CPP, 'build', sub, 'sim.elf')
     if not os.path.exists(elf):
         print('找不到 %s' % elf)
-        print('先跑: python tools/build_cpp.py sim')
+        print('先跑: python tools/build_cpp.py %s' % (kind if kind == 'b' else 'sim'))
         return 1
+    print('运行固件: %s  (%s)\r\n' % (elf, 'A 车麦轮' if kind == 'a' else 'B 车橡胶轮差速'))
 
-    binf = os.path.join(CPP, 'build', 'sim', 'sim.bin')
+    binf = os.path.join(CPP, 'build', sub, 'sim.bin')
     rc, out = sh([OBJCOPY, '-O', 'binary', elf, binf])
     if rc != 0:
         print('[objcopy 失败]'); print(out); return 1

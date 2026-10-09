@@ -56,6 +56,27 @@
 #define STRAFE_SIGN              1
 #define YAW_SIGN                 1
 
+/* ============================================================================
+ * ★★ 车型选择（A 车 = 1 号 = 麦轮 / B 车 = 2 号 = 橡胶轮）★★
+ *
+ * 两台车走差异化配置，轮型不同 → 运动学不同：
+ *   A 车（麦轮）   ：四轮辊子，能前后 + 横移 + 自转 → Chassis_*（mecanum.c）
+ *   B 车（橡胶轮） ：无横向自由度，只能前后 + 自转 → Diff_*（chassis_diff.c）
+ *
+ * 改这一行，其余所有逻辑（斜坡/死区/归一化/急停）完全共用。
+ * ⚠ 换车型必须重新 build + 烧录 —— **两台车是两份固件**。
+ *
+ * 【B 车特有：转弯系数跟着轮径走】
+ *   chassis_diff.c 里 TURN_K = ROBOT_HALF_TRACK / WHEEL_RADIUS，
+ *   所以**换非 60mm 的轮子必须同步改 WHEEL_RADIUS**，否则转向量算错。
+ * ==========================================================================*/
+#define CHASSIS_TYPE_MECANUM     0   /* A 车：麦轮，全向 */
+#define CHASSIS_TYPE_DIFF        1   /* B 车：橡胶轮，差速 */
+
+#ifndef CHASSIS_TYPE
+  #define CHASSIS_TYPE           CHASSIS_TYPE_MECANUM
+#endif
+
 /* 死区补偿（0~1）：TT 马达 + DRV8833 在占空比低于这个值时不转。
  *   现象：推小油门车不动，推到一半突然蹿出去 —— 说明死区调小了，调大。
  *   现象：轻推摇杆车就猛地窜一下 —— 说明死区调大了，调小。
@@ -84,6 +105,10 @@
 #define SPEED_GAIN_FORWARD       0.85f
 #define SPEED_GAIN_STRAFE        0.85f   /* 先和 FORWARD 保持一致，实测后再按上式调 */
 #define SPEED_GAIN_YAW           0.45f   /* 自转最容易打滑，给小一点 */
+
+/* ⚠ 上面两条只对 A 车（麦轮）有意义。B 车没有横移，STRAFE 被忽略。
+ *   B 车自转抓地更好，可以给大一点；下面是 B 车专用增益。 */
+#define SPEED_GAIN_YAW_DIFF      0.60f
 
 /* 加速度斜坡（防滑核心）：单位 = 归一化速度 / 秒
  *   现象：起步轮子原地空转、车抖 —— 调小 ACC_UP

@@ -7,13 +7,18 @@ build_cpp.py —— C++ 版固件的构建脚本
     两套编译器混着来，混在一起会把 build.py 搞得很乱。分开更清楚。
 
 用法：
-    python tools/build_cpp.py mcu      # 真机固件，产物 cpp/build/mcu/firmware.bin
+    python tools/build_cpp.py a        # A 车固件（麦轮 kMecanum），产物 cpp/build/mcu/
+    python tools/build_cpp.py b        # B 车固件（橡胶轮差速 kDiff），产物 cpp/build/mcu_b/
     python tools/build_cpp.py sim      # 模拟器用的 ELF，给 run_cpp_sim.py 吃
-    python tools/build_cpp.py all      # 两个都编
+    python tools/build_cpp.py all      # 三个都编
 
 产物：
-    mcu:  firmware.elf / .bin / .hex / .map   烧录用
-    sim:  sim.elf                             模拟器用，不烧
+    a:    cpp/build/mcu/firmware.elf / .bin / .hex / .map     烧录 A 车
+    b:    cpp/build/mcu_b/firmware.elf / .bin / .hex / .map   烧录 B 车
+    sim:  cpp/build/sim/sim.elf                               模拟器用，不烧
+
+★ 两车差别的全部内容就是：CXXFLAGS 里多/少一个 -DCRTC_CHASSIS_KIND=0 或 1。
+  源文件一个字节都不差 —— 报"底盘运动（全部）"时，这就是代码层面的证据。
 """
 
 import os
@@ -57,6 +62,11 @@ CXXFLAGS = [
     '-fno-threadsafe-statics', '-fno-use-cxa-atexit',
     '-Wall', '-Wno-unused-parameter', '-DSTM32F103xB',
 ]
+
+# ★ 车型运动学内核开关（对应 crtc.hpp 的 kChassisKind）
+#   A 车 = 0（kMecanum 麦轮）；B 车 = 1（kDiff 橡胶轮差速）
+CXXFLAGS_A = CXXFLAGS + ['-DCRTC_CHASSIS_KIND=0']
+CXXFLAGS_B = CXXFLAGS + ['-DCRTC_CHASSIS_KIND=1']
 
 LDFLAGS_MCU = [
     '-mcpu=cortex-m3', '-mthumb',
@@ -104,11 +114,21 @@ def compile_one(compiler, src, obj, flags):
     return True
 
 
-def build_mcu():
-    outdir = os.path.join(CPP, 'build', 'mcu')
+def build_mcu(kind='a'):
+    """kind='a' -> A 车（麦轮）；kind='b' -> B 车（橡胶轮差速）。
+
+    两套的差别**只有一个编译宏** -DCRTC_CHASSIS_KIND=0/1，
+    源文件完全一样。产物分别落在 build/mcu 和 build/mcu_b，互不覆盖。
+    这么做的意义：两台车共用同一份代码 + 同一份参数表，
+    只有运动学那一行不同 —— 报"底盘运动（全部）"时这是最干净的代码证据。
+    """
+    extra = CXXFLAGS_A if kind == 'a' else CXXFLAGS_B
+    name  = 'A 车 麦轮' if kind == 'a' else 'B 车 橡胶轮差速'
+
+    outdir = os.path.join(CPP, 'build', 'mcu' if kind == 'a' else 'mcu_b')
     os.makedirs(outdir, exist_ok=True)
     print('=' * 74)
-    print('目标: mcu（C++ 真机固件）')
+    print('目标: mcu%s（C++ 真机固件 · %s）' % ('' if kind == 'a' else '_b', name))
     print('=' * 74)
 
     objs = []
@@ -122,13 +142,13 @@ def build_mcu():
     for f in CPP_FILES + ['hal_mcu.cpp']:
         src = os.path.join(CPP, 'src', f)
         obj = os.path.join(outdir, f.replace('.cpp', '.o'))
-        if not compile_one(CXX, src, obj, CXXFLAGS):
+        if not compile_one(CXX, src, obj, extra):
             return False
         objs.append(obj)
 
     src = os.path.join(CPP, 'main_mcu.cpp')
     obj = os.path.join(outdir, 'main_mcu.o')
-    if not compile_one(CXX, src, obj, CXXFLAGS):
+    if not compile_one(CXX, src, obj, extra):
         return False
     objs.append(obj)
 
@@ -149,27 +169,35 @@ def build_mcu():
     return True
 
 
-def build_sim():
-    outdir = os.path.join(CPP, 'build', 'sim')
+def build_sim(kind='a'):
+    """模拟器 ELF。kind 决定编进哪套运动学内核，理由见下面注释。"""
+    extra = CXXFLAGS_A if kind == 'a' else CXXFLAGS_B
+    name  = 'A 车 麦轮' if kind == 'a' else 'B 车 橡胶轮差速'
+
+    outdir = os.path.join(CPP, 'build', 'sim' if kind == 'a' else 'sim_b')
     os.makedirs(outdir, exist_ok=True)
     print('=' * 74)
-    print('目标: sim（模拟器离线验证）')
+    print('目标: sim%s（模拟器离线验证 · %s）' % ('' if kind == 'a' else '_b', name))
     print('=' * 74)
 
     objs = []
     for f in CPP_FILES + ['hal_sim.cpp']:
         src = os.path.join(CPP, 'src', f)
         obj = os.path.join(outdir, f.replace('.cpp', '.o'))
-        if not compile_one(CXX, src, obj, CXXFLAGS):
+        if not compile_one(CXX, src, obj, extra):
             return False
         objs.append(obj)
 
     src = os.path.join(CPP, 'main_sim.cpp')
     obj = os.path.join(outdir, 'main_sim.o')
-    if not compile_one(CXX, src, obj, CXXFLAGS):
+    if not compile_one(CXX, src, obj, extra):
         return False
     objs.append(obj)
 
+    # ⚠ 产物名固定叫 sim.elf，因为 run_cpp_sim.py 就认这个名。
+    #   A/B 两份落在不同目录，不会互相覆盖。
+    #   kinematics() 是编译期分派的（-Os 会把常量条件彻底折掉），
+    #   所以"用同一份 sim 测两台车"是测不出来的 —— 必须编两份、各跑一遍。
     elf = os.path.join(outdir, 'sim.elf')
     # 库必须写在源文件后面：ld 是按顺序解析符号的
     rc, out = run([CXX] + LDFLAGS_SIM + objs + ['-o', elf])
@@ -188,11 +216,11 @@ def main():
         return 1
     arg = sys.argv[1]
     if arg == 'all':
-        targets = ['mcu', 'sim']
-    elif arg in ('mcu', 'sim'):
+        targets = ['a', 'b', 'sim', 'sim_b']
+    elif arg in ('a', 'b', 'sim', 'sim_b'):
         targets = [arg]
     else:
-        print('未知目标: %s，可选: mcu / sim / all' % arg)
+        print('未知目标: %s，可选: a(A车麦轮) / b(B车差速) / sim(A车模拟) / sim_b(B车模拟) / all' % arg)
         return 1
 
     if not os.path.exists(CXX):
@@ -202,10 +230,12 @@ def main():
 
     ok = True
     for t in targets:
-        if t == 'mcu':
-            ok = build_mcu() and ok
+        if t in ('a', 'b'):
+            ok = build_mcu(t) and ok
+        elif t == 'sim_b':
+            ok = build_sim('b') and ok
         else:
-            ok = build_sim() and ok
+            ok = build_sim('a') and ok
     return 0 if ok else 1
 
 

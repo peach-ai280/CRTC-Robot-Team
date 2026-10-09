@@ -69,7 +69,8 @@ static void caseWhere(const char *name, float vx, float vy, float wz,
 
 static void testKinematics(void)
 {
-    printf("\r\n[1] 麦轮解算与归一化\r\n");
+    printf("\r\n[1] 运动学解算与归一化（%s）\r\n",
+           CRTC_IS_DIFF() ? "B 车 橡胶轮差速" : "A 车 麦轮");
 
     struct Case { const char *n; float vx, vy, wz; };
     static const Case cases[] = {
@@ -109,33 +110,62 @@ static void testKinematics(void)
         }
     }
 
+    /* ---- 两台车共有 ------------------------------------------------------ */
     check(store[0][0] > 0.4f && store[0][1] > 0.4f && store[0][2] > 0.4f &&
-          store[0][3] > 0.4f && (fabsf(store[0][0] - store[0][3]) < 0.02f),
+          store[0][3] > 0.4f &&
+          fabsf(store[0][0] - store[0][3]) < 0.02f,
           "纯前进：四轮同为正且相等");
-    check(store[1][0] < -0.4f && store[1][3] < -0.4f &&
-          store[1][1] >  0.4f && store[1][2] >  0.4f,
-          "纯左移：LF/RB 负，RF/LB 正");
-    check(store[2][0] < -0.3f && store[2][2] < -0.3f &&
-          store[2][1] >  0.3f && store[2][3] >  0.3f,
-          "纯逆时针：左两轮负，右两轮正");
     check(store[7][0] < -0.4f && store[7][1] < -0.4f &&
           store[7][2] < -0.4f && store[7][3] < -0.4f,
           "纯后退：四轮同为负");
 
-    printf("\r\n[2] 归一化有没有保住方向（正解反算 vs 增益后期望）\r\n");
-    for (int i = 0; i < n; i++)
+    if (CRTC_IS_DIFF())
     {
-        if (fabsf(cases[i].vx) < 1e-6f && fabsf(cases[i].vy) < 1e-6f) continue;
-        printf("  %s cmd=%7.2f  expect=%7.2f  back=%7.2f  err=%+.3f\r\n",
-               cases[i].n, aCmd[i], aExp[i], aOut[i], aOut[i] - aExp[i]);
-        if (fabsf(aOut[i] - aExp[i]) > 0.5f)
+        /* ---- B 车：差速形式，横移不存在 -------------------------------- */
+        check(fabsf(store[1][0]) < 0.01f && fabsf(store[1][1]) < 0.01f &&
+              fabsf(store[1][2]) < 0.01f && fabsf(store[1][3]) < 0.01f,
+              "纯横移（B 车）：四轮全 0 —— 橡胶轮没有横向自由度，这是物理事实");
+        check(store[2][0] > 0.3f && store[2][2] > 0.3f &&
+              store[2][1] < -0.3f && store[2][3] < -0.3f,
+              "纯逆时针（B 车）：左两轮 +、右两轮 −（差速转向）");
+
+        printf("\r\n[2] 归一化有没有保住方向\r\n");
+        printf("  ⚠ B 车有 vy 需求时方向必然偏 —— 见下面 strafe/diag45/all3 三行。\r\n");
+        for (int i = 0; i < n; i++)
         {
-            printf("  [FAIL] %s 方向偏了 %.2f 度\r\n", cases[i].n, aOut[i] - aExp[i]);
-            g_fail++;
+            if (fabsf(cases[i].vx) < 1e-6f && fabsf(cases[i].vy) < 1e-6f) continue;
+            printf("  %s cmd=%7.2f  expect=%7.2f  back=%7.2f  err=%+.3f\r\n",
+                   cases[i].n, aCmd[i], aExp[i], aOut[i], aOut[i] - aExp[i]);
         }
+        /* 纯前进 / 纯后退方向必须精确 */
+        check(fabsf(aOut[0]) < 0.5f || fabsf(fabsf(aOut[0]) - 180.0f) < 0.5f,
+              "纯前进：方向没偏（vy=0 时差速与麦轮完全等价）");
     }
-    /* 增益相等时，指令方向应该就是实际方向 */
-    check(fabsf(aOut[4] - aCmd[4]) < 1.0f, "斜走45° 实际方向 == 指令方向（两增益必须相等）");
+    else
+    {
+        /* ---- A 车：麦轮，全向 ------------------------------------------ */
+        check(store[1][0] < -0.4f && store[1][3] < -0.4f &&
+              store[1][1] >  0.4f && store[1][2] >  0.4f,
+              "纯左移：LF/RB 负，RF/LB 正");
+        check(store[2][0] < -0.3f && store[2][2] < -0.3f &&
+              store[2][1] >  0.3f && store[2][3] >  0.3f,
+              "纯逆时针：左两轮负，右两轮正");
+
+        printf("\r\n[2] 归一化有没有保住方向（正解反算 vs 增益后期望）\r\n");
+        for (int i = 0; i < n; i++)
+        {
+            if (fabsf(cases[i].vx) < 1e-6f && fabsf(cases[i].vy) < 1e-6f) continue;
+            printf("  %s cmd=%7.2f  expect=%7.2f  back=%7.2f  err=%+.3f\r\n",
+                   cases[i].n, aCmd[i], aExp[i], aOut[i], aOut[i] - aExp[i]);
+            if (fabsf(aOut[i] - aExp[i]) > 0.5f)
+            {
+                printf("  [FAIL] %s 方向偏了 %.2f 度\r\n", cases[i].n, aOut[i] - aExp[i]);
+                g_fail++;
+            }
+        }
+        /* 增益相等时，指令方向应该就是实际方向 */
+        check(fabsf(aOut[4] - aCmd[4]) < 1.0f, "斜走45° 实际方向 == 指令方向（两增益必须相等）");
+    }
 }
 
 static void testRamp(void)
@@ -301,6 +331,101 @@ static void testVision(void)
     check(!g_vis.valid(hal::millis(), 300), "超过 300ms 没新帧则判定失效");
 }
 
+/* ---------------------------------------------------------------------------
+ * [7] 差速转向内核自检（B 车）
+ *
+ * ⚠ 这一节**不是**"直接 new 一个 Chassis 就叫差速车"。
+ *   kinematics() 是编译期分派的（-Os 下会把常量条件彻底折掉），
+ *   所以在 A 车编译设置里跑的 sim.elf 无论怎么调都是麦轮公式 ——
+ *   一开始我就是这么写的，跑出来"差速自转"和麦轮一模一样，白测一轮。
+ *
+ *   正确做法：sim.elf 单独用 -DCRTC_CHASSIS_KIND=1 编一份（build_sim('b')），
+ *   这一步的表格才有意义。本节的 check 也会根据编译出来的车型自动改期望值，
+ *   两份固件都能跑同一段代码。
+ * -------------------------------------------------------------------------*/
+static void testDiffKernel(void)
+{
+    printf("\r\n[7] 运动学内核自检（本份固件 = %s）\r\n",
+           CRTC_IS_DIFF() ? "B 车 橡胶轮差速" : "A 车 麦轮");
+
+    Chassis dc;
+    dc.init(kDefaultParams);
+
+    struct C { const char *n; float vx, vy, wz; };
+    static const C cs[] = {
+        { "forward ",  1.0f,  0.0f,  0.0f },
+        { "strafe  ",  0.0f,  1.0f,  0.0f },
+        { "yaw     ",  0.0f,  0.0f,  1.0f },
+        { "back    ", -1.0f,  0.0f,  0.0f },
+        { "diag45  ",  0.707f, 0.707f, 0.0f },
+        { "fwd+yaw ",  1.0f,  0.0f,  0.5f },
+    };
+    const int n = (int)(sizeof(cs) / sizeof(C));
+
+    float w[6][4];
+
+    printf("  case      cmd(vx,vy,wz)         LF      RF      LB      RB\r\n");
+    for (int i = 0; i < n; i++)
+    {
+        dc.stop();
+        for (int k = 0; k < 4; k++) w[i][k] = 0.0f;
+
+        for (int s = 0; s < 200; s++)
+        {
+            hal::simAdvance(5);
+            dc.setTarget(cs[i].vx, cs[i].vy, cs[i].wz);
+            dc.update(0.005f, hal::millis());
+        }
+        const float *ww = dc.wheels();
+        for (int k = 0; k < 4; k++) w[i][k] = ww[k];
+
+        printf("  %s (%+.2f,%+.2f,%+.2f)  %+.3f  %+.3f  %+.3f  %+.3f\r\n",
+               cs[i].n, cs[i].vx, cs[i].vy, cs[i].wz,
+               w[i][0], w[i][1], w[i][2], w[i][3]);
+    }
+
+    printf("  转弯系数 K = %.4f (= halfTrack %.3f / wheelRadius %.3f)\r\n",
+           dc.turnK(), kDefaultParams.halfTrack, kDefaultParams.wheelRadius);
+
+    /* ---- 两台车共有的性质：前进 / 后退 ---------------------------------- */
+    check(w[0][0] > 0.4f && w[0][1] > 0.4f && w[0][2] > 0.4f && w[0][3] > 0.4f,
+          "纯前进：四轮同为正");
+    check(fabsf(w[3][0] + w[0][0]) < 0.03f && fabsf(w[3][1] + w[0][1]) < 0.03f,
+          "纯后退：与前进严格反号");
+
+#if CRTC_IS_DIFF()
+    /* ---- B 车专有：差速形式 --------------------------------------------- */
+    check(fabsf(w[0][0] - w[0][1]) < 0.02f && fabsf(w[0][2] - w[0][3]) < 0.02f &&
+          fabsf(w[0][0] - w[0][2]) < 0.02f,
+          "差速-纯前进：四轮大小相等（与麦轮等效）");
+    check(w[2][0] > 0.3f && w[2][2] > 0.3f && w[2][1] < -0.3f && w[2][3] < -0.3f,
+          "差速-纯自转：左两轮同号(+)，右两轮同号(-)  ← 差速的正确形式");
+    check(fabsf(w[2][0] - w[2][2]) < 0.02f && fabsf(w[2][1] - w[2][3]) < 0.02f,
+          "差速-纯自转：同侧两轮大小相等（不是麦轮那种对角关系）");
+    check(fabsf(w[1][0]) < 0.01f && fabsf(w[1][1]) < 0.01f &&
+          fabsf(w[1][2]) < 0.01f && fabsf(w[1][3]) < 0.01f,
+          "差速-纯横移：四轮全 0（橡胶轮无横向自由度，丢弃 vy 是对的）");
+    check(fabsf(w[4][0] - w[0][0] * 0.707f) < 0.03f &&
+          fabsf(w[4][1] - w[0][1] * 0.707f) < 0.03f &&
+          fabsf(w[4][0] - w[4][1]) < 0.01f,
+          "差速-斜走：四轮同值且只有前进分量（vy 被丢弃 → 方向偏了 45°，是预期代价）");
+#else
+    /* ---- A 车专有：麦轮对角形式 ----------------------------------------- */
+    check(fabsf(w[0][0] - w[0][1]) < 0.02f && fabsf(w[0][2] - w[0][3]) < 0.02f &&
+          fabsf(w[0][0] - w[0][2]) < 0.02f,
+          "麦轮-纯前进：四轮大小相等");
+    check(w[1][0] < -0.4f && w[1][3] < -0.4f && w[1][1] > 0.4f && w[1][2] > 0.4f,
+          "麦轮-纯横移：LF/RB 负，RF/LB 正（真正的横移，橡胶轮做不到）");
+    check(w[2][0] < -0.3f && w[2][2] < -0.3f && w[2][1] > 0.3f && w[2][3] > 0.3f,
+          "麦轮-纯自转：左两轮负，右两轮正");
+    check(w[2][0] < 0.0f && w[2][3] > 0.0f,
+          "麦轮-纯自转：呈对角线关系（LB/RF 一组，和差速的左右分组完全不同）");
+    check(fabsf(w[4][0]) < 0.05f && w[4][1] > 0.9f && w[4][2] > 0.9f &&
+          fabsf(w[4][3]) < 0.05f,
+          "麦轮-斜走：保住 45°（两侧对角同时出力）");
+#endif
+}
+
 /* --------------------------------------------------------------------------- */
 int main(void)
 {
@@ -313,6 +438,7 @@ int main(void)
     testDeadzone();
     testArm();
     testVision();
+    testDiffKernel();
 
     printf("\r\n==== RESULT: %s (fail=%d) ====\r\n",
            g_fail == 0 ? "ALL PASS" : "FAIL", g_fail);

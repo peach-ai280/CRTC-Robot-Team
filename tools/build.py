@@ -41,11 +41,14 @@ SIZE = os.path.join(TOOLS, 'arm-none-eabi-size.exe')
 # 每个目标要编的源文件（公共的三个会自动加上）
 COMMON = ['hal_shim.c', 'startup_stm32f103xb.c', 'syscalls.c']
 
+# ⚠ 这里是**显式列表**，新加的 .c 文件必须手动登记，否则不会被编译，
+#   而且编译照样"成功"（静默跳过）。加文件后一定用 check_symbols.py 验证。
 TARGETS = {
-    'full': ['main.c', 'app.c', 'ps2.c', 'mecanum.c', 'motor.c',
+    'full': ['main.c', 'app.c', 'ps2.c', 'mecanum.c', 'chassis_diff.c', 'motor.c',
              'servo.c', 'arm.c', 'sensor.c', 'vision.c',
              'auto_task.c', 'auto_full.c', 'bsp.c'],
-    'motion': ['test_motion.c', 'mecanum.c', 'motor.c', 'sensor.c', 'bsp.c'],
+    'motion': ['test_motion.c', 'mecanum.c', 'chassis_diff.c', 'motor.c', 'sensor.c', 'bsp.c'],
+    'motion_b': ['test_motion.c', 'mecanum.c', 'chassis_diff.c', 'motor.c', 'sensor.c', 'bsp.c'],
     'arm': ['test_arm.c', 'servo.c', 'arm.c', 'bsp.c'],
     'ps2':     ['test_ps2.c', 'ps2.c', 'bsp.c'],
 }
@@ -53,6 +56,9 @@ TARGETS = {
 # 每个目标额外加的宏
 EXTRA_FLAGS = {
     'vision': ['-DUSE_VISION=1'],   # 视觉测试固件必须开，否则 vision.c 是空实现
+    # ★ motion = A 车（麦轮）运动学；motion_b = B 车（橡胶轮）差速运动学
+    'motion':   ['-DCHASSIS_TYPE=0'],
+    'motion_b': ['-DCHASSIS_TYPE=1'],
 }
 
 CFLAGS = [
