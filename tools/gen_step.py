@@ -35,11 +35,13 @@ GP = os.path.join(ROOT, "mechanical", "gen_parts.py")
 g = runpy.run_path(GP)
 PARTS = g["PARTS"]
 
-# ★ 2026-10-10：旧「两自由度平面连杆臂」的 5 个件已弃用（机械臂换成平行四连杆）。
-#   **不再导出 STEP / DXF**，免得机械队友照着旧件建模；STL 仍留在 mechanical/stl/
-#   里以备追溯（但打印清单里也不出 G-code）。
+# ★ 2026-10-10 二次改：机械臂最终定为**圆柱坐标机械臂**。旧的三代臂件全部作废 ——
+#   两自由度平面臂（09/10/11/11b/25）+ 平行四连杆臂（32_arm_link / 33_arm_elbow）。
+#   这些件已从 gen_parts.py 里**删除定义**（不再产生 STL/DXF），这个集合是最后一道
+#   防线：万一哪天又从旧版本复制段落回来，STEP 也导出不出去，机械队友不会照着错的建。
 DEPRECATED = {"09_arm_upper", "10_arm_fore", "11_servo_horn_plate",
-              "11b_claw_adapter", "25_arm_riser"}
+              "11b_claw_adapter", "25_arm_riser",
+              "32_arm_link", "33_arm_elbow"}
 _before = len(PARTS)
 PARTS = [p for p in PARTS if p["f"] not in DEPRECATED]
 if _before != len(PARTS):

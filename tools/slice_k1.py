@@ -387,13 +387,15 @@ def main():
         ("02_收集与储仓", ["05_scoop_floor", "05b_scoop_wall_L", "05c_scoop_wall_R",
                            "05d_scoop_back", "06_limit_lever", "12_bin_floor", "13_bin_side",
                            "14_bin_divider", "15_bin_flap"]),
-        # ★ 2026-10-10 大改：机械臂从「大臂+小臂两连杆」换成**平行四连杆**
-        #   （照用户给的参考视频做的）。所以这一批换了件：
-        #     新增 30 臂座 / 31a 回转盘 / 31b 肩架竖板 / 32 平行臂杆 ×2 / 33 肘座
-        #     旧的 09 大臂、10 小臂、11 舵盘板、11b 爪转接板、25 增高座 **不再需要**，
-        #     已从本批次移除（STL 还留在仓库里，但不建议打，省料）。
+        # ★ 2026-10-10 二次大改：机械臂最终定为**圆柱坐标机械臂**
+        #   （回转底座 + 立柱 + 套在柱上的滑座 + 偏心横臂 + 曲柄滑块升降）。
+        #   本批次 8 件：30 回转底座 / 31a 回转盘 / 31b 立柱 / 32 滑座 /
+        #                33 爪横臂 / 34 升降曲柄 / 35 升降连杆 / 36 顶帽
+        #   旧的三代臂件（09 大臂、10 小臂、11 舵盘板、11b 爪转接板、25 增高座、
+        #   32 平行臂杆、33 肘座）**全部作废**，已从本批次移除，STL/DXF 也已从仓库删除。
         ("03_机械臂", ["30_arm_base", "31a_arm_turntable", "31b_arm_mast",
-                       "32_arm_link", "33_arm_elbow",
+                       "32_arm_carriage", "33_arm_boom",
+                       "34_arm_lift_crank", "35_arm_lift_link", "36_arm_lift_cap",
                        "07_grip_finger_L", "08_grip_finger_R",
                        "16_rack_hook", "17_cave_probe", "22_ramp_anchor", "23_cam_mast"]),
         # ★ 2026-10-04 新增：用户要的「平行夹爪」整套（不是转接板，是爪子本身）
@@ -413,7 +415,12 @@ def main():
         ("08_备件_建议打", [("04_column", 2), ("05_scoop_floor", 1),
                             ("06_limit_lever", 1),
                             ("15_bin_flap", 1), ("24b_claw_slider", 1),
-                            ("24g_claw_rack", 1)]),
+                            ("24g_claw_rack", 1),
+                            # ★ 10-10 加：滑座在立柱上来回摩擦，是最先磨松的臂件；
+                            #   曲柄/顶帽是小件，多打一份当备件（各 ~10 分钟）
+                            ("32_arm_carriage", 1),
+                            ("34_arm_lift_crank", 1),
+                            ("36_arm_lift_cap", 1)]),
     ]
     # 外观件（漂亮件）也要能出 G-code —— 单独一批，不承重、可选
     pretty_dir = os.path.join(ROOT, "mechanical", "stl_pretty")
@@ -425,10 +432,8 @@ def main():
 
     QTY = {"04_column": 4, "21_anti_tip": 2, "05b_scoop_wall_L": 1, "05c_scoop_wall_R": 1,
            "06_limit_lever": 2, "13_bin_side": 2, "14_bin_divider": 2, "15_bin_flap": 3,
-           # ★ 2026-10-10：11_servo_horn_plate / 11b_claw_adapter 是旧「两连杆臂」的件，
-           #   新方案改用平行四连杆后**不再需要**，已从批次和数量表里移除。
-           # ★ 平行四连杆臂：两根杆是**完全相同的件**，所以打 2 件
-           "32_arm_link": 2,
+           # ★ 2026-10-10 二次改：臂件换成柱坐标方案后，7 个臂件全部是「1 件」，
+           #   不需要在这里覆盖数量。
            # 平行夹爪：滑块/爪指各 2（左右），连杆 3、摇臂 2、爪指 3 —— 多的是备件
            "24b_claw_slider": 2, "24c_claw_finger": 3,
            "24d_claw_horn": 2, "24e_claw_link": 3,

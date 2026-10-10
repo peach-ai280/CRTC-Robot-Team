@@ -353,92 +353,133 @@ def claw_gear_core(open_state=True):
 # ================================================================ 1. 整车
 
 
-# ================================================================ 3b. 平行四连杆臂
+# ================================================================ 3b. 柱坐标机械臂
 # 这套参数必须和 mechanical/gen_parts.py 的 5.7 节**逐字一致**，改了要两边一起改。
-AB_DECK_TOP = 88.5            # 甲板面离地
-AB_AX       = 106.0           # 回转轴（竖直）在车长方向的位置
-AB_A_HOLE_DX = 18.0           # 主动轴 A 相对回转轴的 x 偏移（= 竖板上孔的局部 x）
-AB_BASE_H   = 50.0            # 臂座高
-AB_TT_T     = 8.0             # 回转盘厚
-AB_SERVO_DZ = 18.0            # MG995 轴心离盘面
-AB_PITCH    = 24.0            # 主动轴→从动轴 轴距
-AB_LINK_L   = 105.0           # 杆长（轴距）
-AB_Y_MAST   = 12.0            # 竖板 y ∈ [12,20]
-AB_Y_LINK   = 20.0            # 杆 / 肘座 y ∈ [20,28]
-AB_TT_Z     = AB_DECK_TOP + AB_BASE_H          # 回转盘底面 138.5
-AB_PLATE_Z  = AB_TT_Z + AB_TT_T                # 盘面 146.5
-AB_AZ       = AB_PLATE_Z + AB_SERVO_DZ         # 主动轴 A 的 z = 164.5
-AB_APZ      = AB_AZ + AB_PITCH                 # 从动轴 A' 的 z = 188.5
-AB_AX_HOLE  = AB_AX + AB_A_HOLE_DX             # 主动轴 A 的 x = 124
+CY_DECK_TOP  = 88.5     # 甲板面离地（**已含 4mm 板厚**）—— 爪尖绝不允许低于这个数
+CY_BASE_L    = 64.0     # 回转底座外廓（沿 x）；座顶 128.5
+CY_BASE_W    = 44.0     # 回转底座外廓（沿 y）★ 刻意做窄：爪内侧指 23.6 > 22 才擦得过去
+CY_BASE_H    = 40.0     # 回转底座高
+CY_TT_D      = 64.0     # 回转盘长（沿 x）
+CY_TT_W      = 44.0     # 回转盘宽（沿 y）
+CY_TT_T      = 6.0      # 回转盘厚
+CY_MAST_H    = 62.65    # 立柱高 → 柱顶 197.15
+CY_CAP_W     = 60.0     # 顶帽外廓
+CY_CAP_T     = 6.0      # 顶帽厚 → 帽顶 203.15
+CY_CAR_H     = 32.0     # 滑座高
+CY_BOOM_X0   = 26.0     # 横臂起点（= 滑座外壁）
+CY_BOOM_X1   = 64.0     # 横臂末端
+CY_BOOM_Z    = 24.0     # 横臂高
+CY_BOOM_Y    = 11.0     # 横臂/曲柄/连杆所在的 y 起点（横臂占 y∈[11,19]）
+CY_BOOM_L    = 52.0     # ★ 爪中心离柱轴的水平距离（第三次改定）
+CY_BOOM_PIN  = 10.0     # 横臂销孔离横臂起点的距离
+CY_CLAW_DROP = 46.0     # ★ 横臂底面 → 爪指尖的落差（爪架 4 + 齿条 8 + 爪指 34）
+CY_CRANK_R   = 15.25    # 曲柄半径 → 行程 2R = 30.5
+CY_LINK_L    = 48.0     # 连杆孔距（定曲柄中心高 = 137.75 + 48 = 185.75）
+CY_AX        = 95.0     # 回转轴在车长方向的位置
+CY_LIFT_MAX  = 2.0 * CY_CRANK_R          # 30.5
+
+CY_BASE_Z    = CY_DECK_TOP               # 88.5   底座底
+CY_TT_Z      = CY_BASE_Z + CY_BASE_H     # 128.5  回转盘底
+CY_MAST_Z    = CY_TT_Z + CY_TT_T         # 134.5  立柱底（= 回转盘顶）
+CY_MAST_TOP  = CY_MAST_Z + CY_MAST_H     # 197.15 立柱顶
+CY_CAP_Z     = CY_MAST_TOP               # 197.15 顶帽底
+CY_CRANK_Z   = CY_CAP_Z - 11.4           # 185.75 曲柄/升降舵机轴心高
+CY_PIN_X     = CY_AX + CY_BOOM_X0 + CY_BOOM_PIN   # 131.0 横臂销 x（= 曲柄中心 x）
+CY_LINK_Y    = 20.0                      # 连杆在 y∈[20,26]，刻意离开横臂那一层
+
+
+def cy_pose(lift=0.0):
+    """给一个升降量 lift（0 = 最低，30.5 = 最高），返回这套臂的四个 z 基准"""
+    car_bot = CY_MAST_Z + lift                  # 滑座底面
+    boom_bot = car_bot - CY_BOOM_Z              # 横臂底面
+    boom_zc = boom_bot + CY_BOOM_Z / 2.0        # 横臂中面
+    pin_z = boom_zc                             # 横臂销孔在横臂中面上
+    claw_z0 = boom_bot + 42.0 - CY_CLAW_DROP     # 爪底板顶面（claw_gear_items 里爪尖在 z0−42）
+    return car_bot, boom_zc, pin_z, claw_z0
+
+
+def crank_phi(lift):
+    """由升降量反解曲柄角 φ（度）。
+       z_s = CY_CRANK_Z + R·sinφ − sqrt(L² − (R·cosφ)²)   （φ ∈ [−90, 90] 单调升）
+    """
+    _, _, pin_z, _ = cy_pose(lift)
+    lo, hi = -90.0, 90.0
+    for _ in range(60):
+        mid = (lo + hi) / 2.0
+        a = math.radians(mid)
+        z = (CY_CRANK_Z + CY_CRANK_R * math.sin(a)
+             - math.sqrt(CY_LINK_L ** 2 - (CY_CRANK_R * math.cos(a)) ** 2))
+        if z < pin_z:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
+
+
+def _crank_pin(phi):
+    a = math.radians(phi)
+    return (CY_PIN_X + CY_CRANK_R * math.cos(a),
+            CY_CRANK_Z + CY_CRANK_R * math.sin(a))
 
 
 def _yaw_about(tris, yaw_deg):
-    """把已经摆好的零件绕「回转盘那根竖直轴」转 yaw 度"""
+    """把已经摆好的零件绕「回转轴那根竖直轴」转 yaw 度"""
     R = _rot("z", yaw_deg)
-    c = np.array([AB_AX, 0.0, 0.0])
+    c = np.array([CY_AX, 0.0, 0.0])
     p = np.asarray(tris, dtype=np.float64).reshape(-1, 3)
     return ((p - c) @ R.T + c).reshape(-1, 3, 3)
 
 
-def arm_pose(pit_deg=0.0):
-    """算一个摆角下的四个关键点：A / A' / B / B' / 肘座中心 E"""
-    A = np.array([AB_AX_HOLE, 0.0, AB_AZ])
-    Ap = np.array([AB_AX_HOLE, 0.0, AB_APZ])
-    d = np.array([math.cos(math.radians(pit_deg)), 0.0,
-                  math.sin(math.radians(pit_deg))])
-    B = A + AB_LINK_L * d
-    Bp = Ap + AB_LINK_L * d
-    return A, Ap, B, Bp, (B + Bp) / 2.0
-
-
-def arm_items(pit_deg=0.0, yaw_deg=0.0, open_state=False):
+def arm_items(lift=0.0, yaw_deg=0.0, open_state=False, show_claw=True):
     """
-    平行四连杆臂整套（含平行爪）。
-      pit_deg : +90 竖直向上｜0 水平｜−90 竖直向下（实际固件锁 −50~+90）
-      yaw_deg : 0 朝车头｜90 朝左｜180 朝车尾（= 收起姿态）
+    柱坐标机械臂整套（含平行爪）。
+      lift    : 升降量 0 ~ 30.5mm（0 = 爪最低）
+      yaw_deg : 0 朝车头（取块）｜90 朝车侧（**检录姿态**）｜180 朝车尾（投放）
     """
     out = []
-    A, Ap, B, Bp, E = arm_pose(pit_deg)
+    car_bot, boom_zc, pin_z, claw_z0 = cy_pose(lift)
+    phi = crank_phi(lift)
 
-    # 臂座：不随 yaw 转
-    out.append((xform(stl_tris("30_arm_base"), trans=(AB_AX, 0.0, AB_DECK_TOP)),
-                C_ARM))
+    # 30 回转底座 —— 不随 yaw 转（舵机在里面，柱体在它上面转）
+    out.append((xform(stl_tris("30_arm_base"), trans=(CY_AX, 0.0, CY_BASE_Z)), C_ARM))
 
-    # 回转盘 + 肩架竖板 + MG995：随 yaw 转
-    swivel = [
-        (xform(stl_tris("31a_arm_turntable"), trans=(AB_AX, 0.0, AB_TT_Z)), C_ARM),
-        (xform(stl_tris("31b_arm_mast"), amap=("x", "z", "y"),
-               trans=(AB_AX, AB_Y_MAST, AB_PLATE_Z)), C_ARM),
-        # MG995 侧躺：轴沿 y，本体 y ∈ [−8,12]、z ∈ [146.5,182.5]
-        (box(AB_AX_HOLE, 2.0, AB_AZ, 40.0, 20.0, 36.0), C_SERVO),
+    # ---- 以下都随 yaw 转
+    sw = [
+        (xform(stl_tris("31a_arm_turntable"), trans=(CY_AX, 0.0, CY_TT_Z)), C_ARM),
+        (xform(stl_tris("31b_arm_mast"), trans=(CY_AX, 0.0, CY_MAST_Z)), C_ARM),
+        (xform(stl_tris("32_arm_carriage"), trans=(CY_AX, 0.0, car_bot)), C_ARM),
+        (xform(stl_tris("33_arm_boom"), amap=("x", "z", "y"),
+               trans=(CY_AX, CY_BOOM_Y, boom_zc)), C_ARM),
+        (xform(stl_tris("36_arm_lift_cap"), trans=(CY_AX, 0.0, CY_CAP_Z)), C_CLAW),
+        # 34 曲柄：绕水平轴（世界 y）转 φ
+        (xform(stl_tris("34_arm_lift_crank"), amap=("x", "z", "y"),
+               rot=(0.0, phi, 0.0), trans=(CY_PIN_X, CY_BOOM_Y, CY_CRANK_Z)), C_MOTOR),
     ]
-    for t, c in swivel:
+    # 35 连杆：从曲柄销连到横臂销
+    px, pz = _crank_pin(phi)
+    dx, dz = CY_PIN_X - px, pin_z - pz
+    ang = math.degrees(math.atan2(-dz, dx))
+    sw.append((xform(stl_tris("35_arm_lift_link"), amap=("x", "z", "y"),
+                     rot=(0.0, ang, 0.0),
+                     trans=((px + CY_PIN_X) / 2.0, CY_LINK_Y, (pz + pin_z) / 2.0)),
+               C_CLAW))
+    # 升降舵机（吊在顶帽下面，轴沿 y）
+    sw.append((box(CY_PIN_X + 0.3, -0.4, CY_CRANK_Z, 12.6, 22.8, 22.8), C_SERVO))
+    for t, c in sw:
         out.append((_yaw_about(t, yaw_deg), c))
 
-    # 主臂 / 平行杆（同一个件，两根）
-    for p0, p1 in ((A, B), (Ap, Bp)):
-        v = p1 - p0
-        th = math.degrees(math.atan2(-v[2], v[0]))
-        tr = p0 + v / 2.0 - _rot("y", th) @ np.array([0.0, 0.0, 4.0])
-        tr = tr + np.array([0.0, AB_Y_LINK, 0.0])
-        out.append((_yaw_about(
-            xform(stl_tris("32_arm_link"), rot=(0.0, th, 0.0), trans=tuple(tr)),
-            yaw_deg), C_ARM))
-
-    # 肘座（姿态恒定水平，所以永远不转）
-    out.append((_yaw_about(
-        xform(stl_tris("33_arm_elbow"), amap=("x", "z", "y"),
-              trans=(E[0], AB_Y_LINK, E[2])), yaw_deg), C_ARM))
-
-    # 四个关节轴（纯视觉，实物就是 M3×20 螺丝 + 防松螺母）
-    for p in (A, Ap, B, Bp):
-        out.append((_yaw_about(cyl(p[0], AB_Y_LINK + 4.0, p[2], "y", 3.2, 36.0),
+    # 两根销轴（M3×25 + 防松螺母）
+    for py0 in (CY_BOOM_Y, CY_LINK_Y + 3.0):
+        out.append((_yaw_about(cyl(CY_PIN_X, py0, pin_z, "y", 1.6, 16.0),
                                yaw_deg), C_MOTOR))
+    # 回转舵机（塞在底座内腔里）+ 回转盘上的舵机
+    out.append((box(CY_AX, 0.0, CY_BASE_Z + 17.0, 23.0, 13.0, 24.0), C_SERVO))
 
-    # 平行爪：吊在肘座正下方（底板顶面 = 肘座底面）
-    z0 = E[2] - 17.0 - 4.0
-    for tris, col in claw_gear_items(open_state, z0):
-        out.append((_yaw_about(xform(tris, trans=(E[0], 0.0, 0.0)), yaw_deg), col))
+    # ---- 平行爪：吊在横臂正下方，爪中心在柱轴前方 CY_BOOM_L
+    if show_claw:
+        for tris, col in claw_gear_items(open_state, claw_z0):
+            out.append((_yaw_about(xform(tris, trans=(CY_AX + CY_BOOM_L, 0.0, 0.0)),
+                                   yaw_deg), col))
     return out
 
 
@@ -503,11 +544,10 @@ def build_vehicle():
     A((xform(stl_tris("03_deck_splice"), trans=(-30.0, -30.0, 49.0 + DZ)), C_PLA))
 
     # ---- 储仓（100(x)×136(y) 大兜 = 3 列 × 4 排；★ 长边沿车宽 y）
-    #      ★★ 2026-10-10 前移到 x∈[−32, 68]：原来的位置（x∈[−118,−18]）会被
-    #         「收起姿态」的爪子手指扎进去（tools/check_arm_clearance.py 验出来的）。
-    #          前移之后，爪子的停靠点 x=−17 正好落在储仓后列的正上方 ——
-    #          既撞不上，又能就地把方块「垂直放下」（落差只有 22mm，最温和）。
-    BX0, BZ = -32.0, 56.0 + DZ
+    #      ★★ 2026-10-10 二次改：装车位置 x ∈ [−40, +60]。移动过两次：
+    #         ① 原来在 x∈[−118,−18] 时会被「收起姿态」的爪子扎进去；
+    #         ② 前移到 [−32,68] 后，为给「检录态爪朝车侧」让位，整体再后移 8mm。
+    BX0, BZ = -40.0, 56.0 + DZ
     A((xform(stl_tris("12_bin_floor"), trans=(BX0, 0.0, BZ)), C_BIN))
     A((xform(stl_tris("13_bin_side"), amap=("x", "z", "-y"),
              trans=(BX0, -65.0, BZ + 3.0)), C_BIN))
@@ -517,18 +557,21 @@ def build_vehicle():
     A((xform(stl_tris("15_bin_flap"), amap=("y", "-z", "x"),
              trans=(BX0 + 97.0, -21.0, BZ + 55.0)), C_PLA))
     # 方块：3 列（x）× 4 排（y）= 12 位，**最后列的中两排留空**给爪子停车 → 实装 10 块
-    BIN_SKIP = ((0, 1), (0, 2))
+    BIN_SKIP = ((2, 1), (2, 2))
     for i in range(3):
         cx = BX0 + 5 + i * 31.0 + 15.0
         for j, cy in enumerate((-46.5, -15.5, 15.5, 46.5)):
             if (i, j) in BIN_SKIP:
                 continue                      # 爪子停靠位：留空，也是第一个投料口
-            col = (245, 214, 90) if (i, j) == (2, 0) else C_CUBE
+            col = (245, 214, 90) if (i, j) == (0, 0) else C_CUBE
             A((box(cx, cy, BZ + 3 + 15.0, 30.0, 30.0, 30.0), col))
 
-    # ---- ★ 机械臂：照参考视频做的「平行四连杆臂」，这张图画的是**收起姿态**
-    #      （yaw = 180° 朝正后方、pit = 0° 水平平躺，整条臂压在储仓上方）
-    for tris, col in arm_items(pit_deg=0.0, yaw_deg=180.0, open_state=False):
+    # ---- ★ 机械臂：柱坐标（Cylindrical Robot）。这张图画的是 **检录/开局姿态**：
+    #      yaw = 90°（爪朝车侧）、升降最低。为什么不能 yaw=0 或 180：
+    #        · yaw=0（朝车头）→ 爪中心到 x=133+i，全车长会爆到 292，过不了 290 检录；
+    #        · yaw=180（朝车尾）→ 爪正好吊进储仓（仓口 88.5~140.5），撞仓壁；
+    #        · 只有 yaw=90 时爪架落在 x∈[67,123]、y∈[1,75]，整台车一项红线都不碰。
+    for tris, col in arm_items(lift=0.0, yaw_deg=90.0, open_state=False):
         A((tris, col))
 
     # ---- 洞窟探杆（17_cave_probe，SERVO_EXTRA 驱动，□ 键摆出）
@@ -635,14 +678,14 @@ def main():
     notes = [
         # 车头侧（屏幕右下）
         ((143.0, -25, 22), "收集铲（两侧斜壁 + 后壁，唇口贴地）", 120, 230),
-        ((124.0, 26, 178.0), "★ 主臂 / 平行杆（同一个件 ×2，等长 105）", 150, -150),
-        ((-17.0, 30, 176.5), "★ 肘座 —— 姿态永远水平 → 爪子永远朝下", -160, -175),
-        ((-17.0, 0, 132.0), "★ 平行爪：停靠在储仓最后列上方（落差仅 22mm）", -380, 60),
-        ((106.0, -42, 106.0), "★ 臂座（盒式立柱，内塞回转 SG90）", -430, 40),
+        ((150.0, 20, 200.0), "★ 柱坐标机械臂：立柱 + 滑座 + 偏心横臂 + 平行夹爪", 120, -170),
+        ((131.0, 30, 186.0), "★ 升降曲柄（单臂，R=15.25 → 行程 30.5）", -150, -190),
+        ((95.0, 0, 205.0), "★ 顶帽 60×60 —— 升降舵机吊在它下面（立柱唯一能装东西的地方）", -420, -120),
+        ((95.0, 52, 120.0), "★ 爪停在车侧（yaw 90°）· 爪尖 95 > 甲板 88.5，余 6.5mm", -300, 90),
         ((70.0, 81, 86), "甲板（前后两段端面对接 + 搭接板）", -400, -80),
         ((170.0, -74, 40), "★ 洞窟探杆（□ 键摆出）", 60, 150),
         # 车尾侧（屏幕左上）
-        ((18.0, 0, 112), "★ 储仓 100×136：3 列 × 4 排，前排中两排留作爪停车 → 实装 10 块", -300, -170),
+        ((10.0, 0, 112), "★ 储仓 100×136：3 列 × 4 排，最后一列中两排留作爪停车 → 实装 10 块", -300, -170),
         ((-60.0, -70, 62.5), "金属底板 255×150×1.5（装在马达上方）", -300, 130),
         ((-95.0, 10, 76), "2×18650 电池（7.4V）", -300, -40),
         ((-129.0, 0, 88), "编号牌（不能有数字）", -300, 40),
@@ -651,27 +694,27 @@ def main():
         ((90.0, -68, 30), "麦轮 ×4 + TT 马达 ×4（全在板下方）", -70, 300),
     ]
     img = annotate(img, eye, tgt, W, H, notes, f_ratio=FR, font_size=22,
-                   title="CRTC2026 整车装配示意（结构件，外观壳未画）—— 图为机械臂「收起姿态」",
-                   subtitle="长 283 × 宽 162 × 高 196.5mm ｜ 初始尺寸红线 290×195×210 ｜ "
-                            "臂朝正后方平躺，爪停在储仓最后列上方")
+                   title="CRTC2026 整车装配示意（结构件，外观壳未画）—— 机械臂「检录姿态」",
+                   subtitle="长 283 × 宽 162 × 高 204.6mm ｜ 初始尺寸红线 290×195×210 ｜ "
+                            "臂 yaw 90° 朝车侧、升降在最高档")
     img = footer(img, [
         "读图说明：",
         "① 这张图里的每一块，都是「3D打印交付」里那个 STL 打出来的实物，不是手绘示意；"
         "只有金属底板、麦轮、TT 马达、电池、电路板、舵机是外购件，用简化形状代替。",
-        "② ★ 图上就是**比赛开始那一瞬间的姿态**（也是检录姿态）：机械臂 yaw 转了 180°、"
-        "朝正后方水平平躺。长 283、宽 162、高 196.5，三项红线全在里侧。",
-        "③ ★ 机械臂是这一版最大的改动：从「大臂+小臂两连杆」换成**视频里的平行四连杆**。"
-        "肩架竖板上两个轴（相距 24mm）、肘座上两个轴（也是 24mm），两根等长 105mm 的杆一拉，"
-        "四边形永远保持平行四边形 → **肘座姿态恒定水平，爪子从头到尾都是平的**。"
-        "不需要逆解、不需要第二个俯仰舵机、不需要姿态补偿，对新手最友好。",
-        "④ 三个动作正好三个舵机：MG995 管上下摆（−50°~+90°）、SG90 管回转（±120° + 收起用 180°）、"
-        "SG90 管爪子开合。**同一台 ≥3 舵机**，中期指标 5 顺手就满足了。",
-        "⑤ ★ 储仓：长边从车长方向换成车宽方向 → 100(长) × 136(宽)，3 列 × 4 排。"
-        "**最后一列的中两排刻意留空**：那里是收起时爪子的停车位，同时也是落差最小（22mm）的投料口。"
+        "② ★ 图上就是**比赛开始那一瞬间的姿态**（也是检录姿态）：机械臂 yaw=90° 转到车侧、"
+        "升降推到最高档。长 283、宽 162、高 204.6，三项红线全在里侧。",
+        "③ ★ 机械臂这一版换成了**圆柱坐标机械臂（柱坐标 / Cylindrical Robot）**："
+        "θ 轴 = 整根立柱绕底座竖直轴回转（0~180°，1 个舵机）；Z 轴 = 滑座沿立柱直线升降"
+        "（曲柄滑块，行程 30.5，1 个舵机）；第三个舵机管夹爪开合。"
+        "**三个自由度完全解耦、不需要逆运动学**，PS2 直接控各个舵机角度 —— 这是新生队最稳的构型。",
+        "④ ★ 上一版把它读成了「平行四连杆摆动臂」，那是**错的**，已推翻；新构型的所有零件、"
+        "尺寸、装配关系都重画了一遍，见《机械臂_装配与运动范围.html》。",
+        "⑤ ★ 储仓：100(沿车长) × 136(沿车宽)，3 列 × 4 排。"
+        "**最后一列的中两排刻意留空**：那里是收起时爪子的停车位，同时也是投料口。"
         "所以随车携带 10 块 + 爪里还能再夹 1 块。中间 4 根立柱已从 x=±4 挪到 x=−45/+78 给它让位。",
         "⑥ 铲子吊在底板下方两根吊耳上（M3 螺柱），唇口贴地；两侧斜壁把方块收窄到 50mm 喉口。"
-        "★ 分工：**地面上的方块一律用铲收，机械臂只负责高处**（台阶面、物资架、焦点）——"
-        "因为臂一低下去就会扫到铲，这是几何上躲不开的，详见《机械臂_装配与运动范围.html》。",
+        "★ 分工：**地面上的方块一律用铲收**；物资架黄块用挑杆 16_rack_hook、"
+        "洞窟黄块用探杆 17_cave_probe、高处的白块/焦点黄块才归机械臂。",
     ], font_size=21)
     p1 = os.path.join(OUT_DIR, "01_整车装配示意.png")
     img.save(p1)
@@ -790,52 +833,58 @@ def main():
     print("saved", p3)
 
     # ---------------- 图 4：机械臂三姿态（每个姿态单独渲一张再横拼）
+    #   柱坐标臂只有两个动作量：yaw（回转）+ lift（升降）。
     #   每一张里那根**红色横杠就是 210mm 限高线**，肉眼就能看出还剩多少余量。
     POSES = [
-        (0.0, 180.0, -17.0,
-         "① 收起姿态（检录 / 开局）",
-         "yaw 180° 朝正后方 · pit 0° 水平平躺 · 爪停在储仓最后列上方 · 全车最高 196.5mm"),
-        (90.0, 0.0, 124.0,
-         "② 举到最高 —— 取物资架黄块",
-         "pit +90°：爪夹持区 218.5~252.5，套住离地 235~265 的黄块（重叠 17.5mm）"),
-        (-50.0, 0.0, 170.0,
-         "③ 压到最低 —— 固件锁死的下限",
-         "pit −50°：再往下主臂就扫到收集铲了。地面方块一律交给铲，不用臂"),
+        (CY_LIFT_MAX, 90.0, 100.0,
+         "① 检录 / 收起姿态",
+         "yaw 90° 朝车侧 · 升降到最高档 · 全车最高 204.6mm（红线 210，余 5.4）"),
+        (0.0, 0.0, 130.0,
+         "② 取块姿态（最低档）",
+         "yaw 0° 朝车头 · 爪在 x=147（已在甲板前缘 127 之外）· 爪尖 64.5"),
+        (CY_LIFT_MAX, 180.0, 60.0,
+         "③ 投放姿态（朝储仓）",
+         "yaw 180° 朝车尾 · 爪在 x=43 正落在储仓停车格上方 · 爪尖 95（仓底 94.5）"),
     ]
     sub_w, sub_h = 720, 800
     subs = []
-    for pit, yaw, cx, t1, t2 in POSES:
-        it = list(arm_items(pit_deg=pit, yaw_deg=yaw, open_state=False))
+    for lift, yaw, cx, t1, t2 in POSES:
+        it = list(arm_items(lift=lift, yaw_deg=yaw, open_state=False))
         it.append((box(cx, -240.0, 210.0, 560.0, 7.0, 3.5), (206, 74, 74)))  # 210 限高线
-        if abs(yaw - 180.0) < 1e-6:      # 收起态：把储仓画出来，证明「停在上方不打架」
-            it.append((box(18.0, 0.0, 88.5 + 2.0, 100.0, 136.0, 6.0), (150, 190, 165)))
-            for j, cy in enumerate((-46.5, -15.5, 15.5, 46.5)):
-                if j in (1, 2):
-                    continue                      # ★ 爪的停车位：留空
-                it.append((box(-13.5, cy, 91.5 + 15.0, 30.0, 30.0, 30.0), (150, 190, 165)))
-        eye, tgt = (cx + 380.0, -900.0, 430.0), (cx, 0.0, 155.0)
-        s, _, _ = render(it, eye, tgt, sub_w, sub_h, f_ratio=2.5, ss=2,
+        if abs(yaw - 180.0) < 1e-6:      # 投放态：把储仓画出来，证明「落得进去」
+            it.append((box(10.0, 0.0, 88.5 + 1.5, 100.0, 136.0, 3.0), (150, 190, 165)))
+            for i in range(3):
+                for j, cy in enumerate((-46.5, -15.5, 15.5, 46.5)):
+                    if (i, j) in ((2, 1), (2, 2)):
+                        continue                  # ★ 爪的停车位：留空
+                    it.append((box(-40.0 + 5.0 + i * 31.0 + 15.0, cy,
+                                   88.5 + 3.0 + 15.0, 30.0, 30.0, 30.0),
+                               (150, 190, 165)))
+        eye, tgt = (cx + 300.0, -640.0, 360.0), (cx, 0.0, 140.0)
+        s, _, _ = render(it, eye, tgt, sub_w, sub_h, f_ratio=1.95, ss=2,
                          grid_ext=340.0, grid_step=50.0)
         s = annotate(s, eye, tgt, sub_w, sub_h, [],
-                     f_ratio=2.5, font_size=20, title=t1, subtitle=t2)
+                     f_ratio=1.95, font_size=20, title=t1, subtitle=t2)
         subs.append(s)
     canvas = Image.new("RGB", (sub_w * 3 + 24, sub_h + 16), (250, 250, 251))
     for i, s in enumerate(subs):
         canvas.paste(s, (i * (sub_w + 12), 8))
     canvas = footer(canvas, [
-        "★ 这张图只画机械臂本体（不含车身），三个姿态共用同一把尺子 —— 所以三张里的红色横杠是"
-        "同一条 210mm 限高线，可以横向对比。",
-        "① 收起姿态：臂水平朝后躺平，最高点是肩架竖板顶 196.5mm，离红线还有 13.5mm。"
-        "浅绿色那块是储仓（100×136，3 列 × 4 排）；**最后一列的中两排刻意留空**，"
-        "爪指正好停在那两格里（落差只有 22mm，是全仓最好放的一格）。",
-        "② 举到最高：拿离地 250mm 的物资架黄块用。爪指夹持区 218.5~252.5 对黄块 235~265，"
-        "重叠 17.5mm，**能夹住下半截**（把它先沿 φ14 圆柱往外拨，再夹住拖出来）。"
-        "注意：这时整车高度已远超 210 —— 但规则只要求「开局那一瞬间」不超 210，"
-        "比赛中变形后上限是 445×400×450。",
-        "③ 压到最低：−50° 是固件锁死的下限。为什么不再往下？因为再低主臂就会切进车头的收集铲。"
-        "所以**地面上的方块全部交给铲来收**，臂不参与 —— 这是本方案里唯一一处「必须妥协」的地方。",
-        "★ 三个舵机怎么分工：MG995 管上下摆（就是这三张图里的角度变化）、SG90 管回转、"
-        "SG90 管爪子开合。**同一台 ≥3 舵机**，中期指标 5 直接满足。",
+        "★ 柱坐标机械臂只有两个动作量：**yaw（整根立柱绕底座回转 0~180°）+ lift（滑座沿立柱升降，行程 30.5）**，"
+        "第三个自由度是夹爪开合。三自由度完全解耦、不需要逆运算。",
+        "★ 三张图共用同一把尺子 —— 红色横杠是同一条 210mm 限高线，可以横向对比。",
+        "① 检录 / 收起：yaw 90°（爪朝车侧）+ 升降到最高档。全车最高点是曲柄外缘 204.6mm，离红线余 5.4mm。"
+        "★ 这里必须用最高档：爪尖在最高档是 95mm，比甲板顶 88.5 高 6.5mm；"
+        "**换成最低档爪尖只有 64.5mm，会直接插进甲板** —— 这就是为什么固件要加互锁。",
+        "② 取块：yaw 0° 朝车头，爪中心在 x=147，已经在甲板前缘（x=127）之外，"
+        "所以这一侧可以放心把升降放到最低档（爪尖 64.5）。",
+        "③ 投放：yaw 180° 朝车尾，爪中心落在 x=43，正对储仓停车格上方；"
+        "浅绿色是储仓（100×136，3 列 × 4 排，**最后一列中两排刻意留空**当爪停车位 + 投料口）。"
+        "爪尖最高 95 vs 仓底 94.5 —— **只剩 0.5mm，这是全车最紧的一处**，进场前必须实测。",
+        "★ 三个舵机怎么分工：SG90 管回转（PA11）｜SG90 管升降（PA1，曲柄滑块）｜SG90 管夹爪开合（PA0）。"
+        "**同一台 ≥3 舵机**，中期指标 5 直接满足。",
+        "⚠ 局限：爪尖最高只有 95mm，**够不到离地 250 的物资架黄块**（差 155mm），"
+        "也够不到地面。物资架改用挑杆 16_rack_hook、地面方块改用前铲、洞穴黄块改用探杆 17_cave_probe。",
     ], font_size=20)
     p4 = os.path.join(OUT_DIR, "05_机械臂_三姿态与限高.png")
     canvas.save(p4)

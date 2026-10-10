@@ -115,7 +115,7 @@ build(os.path.join(G, "②发给机械部_打印件与装配图.zip"),
        ("齿轮夹爪_装配图.html", "齿轮夹爪_装配图.html"),
        ("打印件示意图_全部零件.html", "打印件示意图_全部零件.html"),
        ("打印件齐全性核对_一台车全在这了.md", "打印件齐全性核对_一台车全在这了.md"),
-       ("打印顺序_机械臂还在改怎么打.md", "打印顺序_机械臂还在改怎么打.md"),
+       ("打印顺序_时间紧就分两批打.md", "打印顺序_时间紧就分两批打.md"),
        ("明天去买的五金清单_两台车往多了备.md", "明天去买的五金清单_两台车往多了备.md"),
        ("给机械队友_怎么在SW和Fusion里打开.md", "给机械队友_怎么在SW和Fusion里打开.md"),
        ("装配图_照着装车.html", "装配图_照着装车.html"),
@@ -174,10 +174,11 @@ with zipfile.ZipFile(os.path.join(G, "⑤发给建模同学_零件图与整车�
     add_dir(zf, CAD, "B_要改模型才用_DXF", exts={".dxf"})
     add_file(zf, find("尺寸表.csv"), "B_要改模型才用_DXF/尺寸表.csv")
     add_dir(zf, STEP, "B_要改模型才用_STEP")
-    # STL 目录里还留着旧「两连杆臂」的 5 个件（仓库保留用于追溯），
-    # 但发给机械队友的包里**不能带**，否则会照着旧件干活。
+    # STL 目录里可能还留着旧臂件的残留（已被 gen_parts.py 删除定义，正常不会有），
+    # 但发给机械队友的包里**绝对不能带**，否则他会照着旧件干活。
     DEPRECATED_STL = {"09_arm_upper.stl", "10_arm_fore.stl", "11_servo_horn_plate.stl",
-                      "11b_claw_adapter.stl", "25_arm_riser.stl"}
+                      "11b_claw_adapter.stl", "25_arm_riser.stl",
+                      "32_arm_link.stl", "33_arm_elbow.stl"}
     add_dir(zf, os.path.join(R, "mechanical", "stl"), "B_要改模型才用_STL",
             skip_names=DEPRECATED_STL)
 
