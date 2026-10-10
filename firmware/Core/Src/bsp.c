@@ -6,6 +6,8 @@
  *         servo.c 直接往比较寄存器填"微秒数"（500~2500），靠的就是 1MHz
  *   TIM4: PSC=0,   ARR=7199  -> 72MHz 计数, 10kHz
  *         motor.c 里 MOTOR_PWM_PERIOD 必须等于 7199，否则占空比全错
+ *   TIM1: PSC=71,  ARR=19999 -> 1MHz 计数, 50Hz（只开 CH4，别的通道留给 USART1）
+ *         ⚠ TIM1 是高级定时器，BDTR.MOE 不置 1 就一个波形都不出（hal_shim 里已处理）
  * ==========================================================================*/
 
 #include "bsp.h"
@@ -15,6 +17,7 @@
 /* ---------------------------------------------------------------------------
  * 全局外设句柄（main.h 里 extern，别的模块通过 board.h 的宏引用它们）
  * -------------------------------------------------------------------------*/
+TIM_HandleTypeDef  htim1;      /* ★ PA11，第 5 路舵机（回转 SG90） */
 TIM_HandleTypeDef  htim2;
 TIM_HandleTypeDef  htim4;
 SPI_HandleTypeDef  hspi1;
@@ -95,6 +98,19 @@ void BSP_GPIO_Init(void)
     g.Mode  = GPIO_MODE_AF_PP;
     g.Pull  = GPIO_NOPULL;
     g.Speed = GPIO_SPEED_FREQ_LOW;      /* 50Hz 不需要快翻转，慢一点干扰小 */
+    HAL_GPIO_Init(GPIOA, &g);
+
+    /* --- ★ 第 5 路舵机：PA11（TIM1_CH4）复用推挽 ---
+     *   ⚠ PA11/PA12 在蓝丸板上同时接着 micro-USB 的 D-/D+。
+     *     我们不用板载 USB（供电和烧录都走 ST-LINK），所以当普通引脚用没问题；
+     *     但**调车时别把 micro-USB 插上当电源**（会跟舵机脉冲打架）。
+     *   为什么是 PA11：TIM2 的 4 个通道（PA0~PA3）已经全用满、TIM4 给了电机，
+     *   TIM3 的重映射引脚会跟 PS2 片选/电池检测/按键撞车 ——
+     *   TIM1_CH4 = PA11 是唯一「不重映射、不冲突、板上还引出来了」的选择。 */
+    g.Pin   = GPIO_PIN_11;
+    g.Mode  = GPIO_MODE_AF_PP;
+    g.Pull  = GPIO_NOPULL;
+    g.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIOA, &g);
 
     /* --- 蜂鸣器 PA8（可选件，没焊也不影响） --- */
@@ -217,6 +233,32 @@ void BSP_TIM2_Init(void)
 }
 
 /* ============================================================================
+ * ★ TIM1_CH4 —— 第 5 路舵机（回转 SG90），50Hz
+ *   和 TIM2 完全同参数（PSC=71/ARR=19999 → 1 个计数 = 1µs，周期 20ms），
+ *   但 TIM1 挂在 APB2 上。APB2 分频 = 1，所以 TIM1CLK = 72MHz，和 TIM2 一样。
+ *   ★ 只开 CH4：CH1/CH2/CH3 分别是 PA8/PA9/PA10，那三个脚给蜂鸣器和串口了，
+ *     一个定时器的不同通道可以单独用，互不影响。
+ * ==========================================================================*/
+void BSP_TIM1_Init(void)
+{
+    TIM_OC_InitTypeDef oc = {0};
+
+    htim1.Instance               = TIM1;
+    htim1.Init.Prescaler         = 71;
+    htim1.Init.CounterMode       = TIM_COUNTERMODE_UP;
+    htim1.Init.Period            = 19999;
+    htim1.Init.ClockDivision     = TIM_CLOCKDIVISION_DIV1;
+    htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+    if (HAL_TIM_PWM_Init(&htim1) != HAL_OK) Error_Handler();
+
+    oc.OCMode     = TIM_OCMODE_PWM1;
+    oc.Pulse      = 1500;                 /* 1.5ms = 中位，上电不甩 */
+    oc.OCPolarity = TIM_OCPOLARITY_HIGH;
+    oc.OCFastMode = TIM_OCFAST_DISABLE;
+    HAL_TIM_PWM_ConfigChannel(&htim1, &oc, TIM_CHANNEL_4);
+}
+
+/* ============================================================================
  * TIM4 —— 4 路电机，10kHz
  *   72MHz / 1 = 72MHz，周期 7200 计数 = 10kHz
  *   为什么是 10kHz 不是 20kHz：TT 马达 + DRV8833 在 10kHz 时噪声最小、
@@ -326,6 +368,7 @@ void BSP_InitAll(void)
 {
     BSP_GPIO_Init();
     BSP_TIM2_Init();
+    BSP_TIM1_Init();
     BSP_TIM4_Init();
     BSP_SPI1_Init();
     BSP_USART1_Init();

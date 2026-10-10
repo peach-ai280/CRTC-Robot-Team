@@ -14,7 +14,8 @@
 void SystemClock_Config(void);
 
 void BSP_GPIO_Init(void);
-void BSP_TIM2_Init(void);      /* 舵机 50Hz   PA0~PA3 */
+void BSP_TIM2_Init(void);      /* 舵机 50Hz   PA0~PA3（4 路） */
+void BSP_TIM1_Init(void);      /* ★ 第 5 路舵机 50Hz  PA11（TIM1_CH4，回转 SG90） */
 void BSP_TIM4_Init(void);      /* 电机 10kHz  PB6~PB9 */
 void BSP_SPI1_Init(void);      /* PS2         PA5/6/7 */
 void BSP_USART1_Init(void);    /* 串口 115200 PA9/10  */

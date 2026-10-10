@@ -35,6 +35,16 @@ GP = os.path.join(ROOT, "mechanical", "gen_parts.py")
 g = runpy.run_path(GP)
 PARTS = g["PARTS"]
 
+# ★ 2026-10-10：旧「两自由度平面连杆臂」的 5 个件已弃用（机械臂换成平行四连杆）。
+#   **不再导出 STEP / DXF**，免得机械队友照着旧件建模；STL 仍留在 mechanical/stl/
+#   里以备追溯（但打印清单里也不出 G-code）。
+DEPRECATED = {"09_arm_upper", "10_arm_fore", "11_servo_horn_plate",
+              "11b_claw_adapter", "25_arm_riser"}
+_before = len(PARTS)
+PARTS = [p for p in PARTS if p["f"] not in DEPRECATED]
+if _before != len(PARTS):
+    print("★ 已跳过 %d 个弃用件：%s" % (_before - len(PARTS), ", ".join(sorted(DEPRECATED))))
+
 OUT_DIR = r"D:\WorkBuddy\CRTC交付\给机械队友_CAD包\STEP_可直接编辑"
 os.makedirs(OUT_DIR, exist_ok=True)
 

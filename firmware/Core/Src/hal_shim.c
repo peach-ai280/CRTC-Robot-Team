@@ -198,6 +198,7 @@ static void tim_enable_clock(TIM_TypeDef *t)
     if      (t == TIM2) RCC->APB1ENR |= RCC_APB1ENR_TIM2EN;
     else if (t == TIM3) RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
     else if (t == TIM4) RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;
+    else if (t == TIM1) RCC->APB2ENR |= RCC_APB2ENR_TIM1EN;   /* ★ 高级定时器在 APB2 */
 }
 
 HAL_StatusTypeDef HAL_TIM_PWM_Init(TIM_HandleTypeDef *h)
@@ -209,6 +210,12 @@ HAL_StatusTypeDef HAL_TIM_PWM_Init(TIM_HandleTypeDef *h)
     h->Instance->PSC = h->Init.Prescaler;
     h->Instance->ARR = h->Init.Period;
     h->Instance->EGR = 0x01UL;      /* UG：让 PSC/ARR 立刻生效（否则要等溢出） */
+
+    /* ★ TIM1 是「高级控制定时器」：不置 BDTR 的 MOE（主输出使能）位，
+       所有通道都被强制关断，波形一个都不出 —— 这是新手最容易卡住的一步：
+       寄存器全配对了、CCER 也打开了，示波器上就是没波形。
+       TIM2/TIM3/TIM4 没有这个位，所以不用管。 */
+    if (h->Instance == TIM1) h->Instance->BDTR |= 0x8000UL;   /* TIM_BDTR_MOE */
     return HAL_OK;
 }
 

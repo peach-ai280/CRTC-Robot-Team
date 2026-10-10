@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 /* --- 外设句柄（定义在 main.c）------------------------------------------- */
+extern TIM_HandleTypeDef  htim1;    /* ★ 第 5 路舵机 PWM，50Hz（PA11 = TIM1_CH4，回转 SG90） */
 extern TIM_HandleTypeDef  htim2;    /* 舵机 PWM，50Hz（PA0~PA3） */
 extern TIM_HandleTypeDef  htim4;    /* 电机 PWM，10kHz（PB6~PB9） */
 extern SPI_HandleTypeDef  hspi1;    /* PS2 手柄（PA5/6/7） */

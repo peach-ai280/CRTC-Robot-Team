@@ -41,6 +41,7 @@ static uint8_t  g_mode = DEFAULT_MODE;      /* MODE_MANUAL / MODE_SEMI / MODE_FU
 static uint8_t  g_estop = 0;
 static uint32_t g_t_ctrl = 0, g_t_servo = 0, g_t_log = 0, g_t_led = 0;
 static float    g_tune_arm  = SERVO_ARM_STOW;
+static float    g_tune_yaw  = SERVO_YAW_STOW;    /* ★ 第 5 路：臂回转 */
 static float    g_tune_grip = SERVO_GRIP_OPEN;
 static float    g_tune_scoop= SERVO_SCOOP_TRAVEL;
 
@@ -214,16 +215,23 @@ static void handle_keys(uint32_t now)
 #endif
     }
 
-    /* ---- 舵机在线标定 + 手动操作 ----
+    /* ---- 舵机在线标定 + 手动操作（★ 2026-10-10 按队长要求重排）----
      *   点按 = ±2°（标定，串口打印角度，抄进 config.h）
-     *   按住 > 350ms = 连续转 90°/s（手动操作：大臂升降 / 夹爪开合 / 前铲） */
+     *   按住 > 350ms = 连续转 90°/s（手动操作）
+     *
+     *   ★ 手柄布局就是参考视频里那三个动作：
+     *       十字 上/下  → 大臂上下摆（平行杆的上下移动）
+     *       十字 左/右  → 臂回转（平行杆在同一平面内转动）
+     *       R2 / L2     → 平行爪 夹紧 / 张开
+     *   其余：L1 = 全机构收起（检录位）｜R1 = 前铲放/收｜○△□× = 半自动宏
+     *
+     *   ⚠ 前铲本来也挂在这里在线标定，现在按键不够用了 ——
+     *     前铲的角度请用 test_arm.c 那个专用固件标（串口 p / ; 两个键），
+     *     标完把结果抄回 config.h 就行，是一次性的活。 */
     tune_servo(SERVO_ARM,   PSB_PAD_DOWN, PSB_PAD_UP,    &g_tune_arm,   now);
-    tune_servo(SERVO_GRIP,  PSB_PAD_LEFT, PSB_PAD_RIGHT, &g_tune_grip,  now);
-#if !USE_VISION
-    tune_servo(SERVO_SCOOP, PSB_L2,       PSB_R2,        &g_tune_scoop, now);
-#else
-    tune_servo(SERVO_SCOOP, 0,            PSB_R2,        &g_tune_scoop, now);
-#endif
+    tune_servo(SERVO_YAW,   PSB_PAD_RIGHT, PSB_PAD_LEFT, &g_tune_yaw,   now);  /* ★ 左=朝左转 */
+    tune_servo(SERVO_GRIP,  PSB_L2,       PSB_R2,        &g_tune_grip,  now);
+    (void)g_tune_scoop;   /* 保留变量，只是为了下个版本改回来方便 */
 
     /* ---- 宏 / 全自动 运行期间，操作手动了摇杆就立刻交还控制权（安全第一）---- */
     if (Auto_Running() || FullAuto_Running())

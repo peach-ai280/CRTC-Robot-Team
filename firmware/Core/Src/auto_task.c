@@ -115,38 +115,44 @@ void Auto_Update(uint32_t now_ms)
         }
         break;
 
-    /* ================= 宏2：挑物资架上的黄块 ================= */
+    /* ================= 宏2：取物资架上的黄块（★ 2026-10-10 重写）=========
+     *   新版机械臂在 φ=+90° 时，夹持缝（218.5~252.5）只能盖住黄块（235~265）的
+     *   下半截 17.5mm —— 所以流程改成「举到最高 → 顶上去套住 → 夹 → 边抬边倒车
+     *   把块从 φ14 圆柱上拖出来 → 入仓」。**现场拿不下来就直接放弃，别超时。** */
     case MACRO_RACK:
         switch (g_step)
         {
-        case 0:
-            Servo_SetAngle(SERVO_EXTRA, SERVO_EXTRA_OUT);
-            Servo_SetAngle(SERVO_ARM,   SERVO_ARM_RACK);
+        case 0:   /* 摆好取物资架的姿态：抬平 → 转正前 → 张爪 → 举到最高 → 探杆摆出 */
+            Arm_Start(POSE_RACK_HOOK);
             g_mark = now_ms; g_step = 1;
             break;
         case 1:
-            if (!Servo_IsMoving(SERVO_ARM) && dt > AUTO_RACK_LIFT_MS)
-            { g_mark = now_ms; g_step = 2; }
-            else if (dt > AUTO_RACK_LIFT_MS + 1500) finish(0);
+            if (!Arm_IsBusy()) { g_mark = now_ms; g_step = 2; }
+            else if (dt > AUTO_RACK_LIFT_MS + 3000) finish(0);
             break;
-        case 2:   /* 车往前顶，让挑杆从黄块下方/侧面穿过去 */
+        case 2:   /* 车慢慢往前顶，让爪子套住黄块（车体前进由宏控） */
             set_cmd(AUTO_RACK_PUSH_SPEED, 0, 0);
             if (dt > AUTO_RACK_PUSH_MS) { set_cmd(0, 0, 0); g_mark = now_ms; g_step = 3; }
             break;
-        case 3:   /* 下压挑杆，把黄块从 14mm 圆柱上撬下来 */
-            Servo_SetAngle(SERVO_ARM, SERVO_ARM_STEP);
-            if (!Servo_IsMoving(SERVO_ARM) && dt > 400) { g_mark = now_ms; g_step = 4; }
-            else if (dt > 1200) finish(0);
+        case 3:   /* 夹住（只夹得住下半截） */
+            Servo_SetAngle(SERVO_GRIP, SERVO_GRIP_HOLD_CORE);
+            if (!Servo_IsMoving(SERVO_GRIP) && dt > AUTO_GRIP_SETTLE_MS)
+            { g_mark = now_ms; g_step = 4; }
+            else if (dt > AUTO_GRIP_SETTLE_MS + 1200) finish(0);
             break;
-        case 4:   /* 倒车，块掉进车头兜里 */
+        case 4:   /* 一边抬起一边倒车 —— 把黄块沿 φ14 圆柱往外拖出来 */
+            Servo_SetAngle(SERVO_ARM, SERVO_ARM_LIFT);
             set_cmd(-AUTO_RACK_PULL_SPEED, 0, 0);
             if (dt > AUTO_RACK_PULL_MS) { set_cmd(0, 0, 0); g_mark = now_ms; g_step = 5; }
             break;
-        case 5:
-            Servo_SetAngle(SERVO_ARM,   SERVO_ARM_STOW);
+        case 5:   /* 入仓：抬平 → 转正后 → 松爪，块落进储仓最后一列 */
             Servo_SetAngle(SERVO_EXTRA, SERVO_EXTRA_IN);
-            if (!Servo_AnyMoving() && dt > 400) finish(1);
-            else if (dt > 1500) finish(0);
+            Arm_Start(POSE_STORE);
+            g_mark = now_ms; g_step = 6;
+            break;
+        case 6:
+            if (!Arm_IsBusy()) finish(1);
+            else if (dt > 3000) finish(0);
             break;
         default: finish(0); break;
         }
@@ -156,8 +162,9 @@ void Auto_Update(uint32_t now_ms)
     case MACRO_CAVE:
         switch (g_step)
         {
-        case 0:
-            Servo_SetAngle(SERVO_ARM,   SERVO_ARM_GROUND);
+        case 0:   /* ★ 先把臂抬平并转到正后方让开空间，再摆探杆 —— 顺序不能反 */
+            Servo_SetAngle(SERVO_ARM,   SERVO_ARM_STOW);
+            Servo_SetAngle(SERVO_YAW,   SERVO_YAW_STOW);
             Servo_SetAngle(SERVO_EXTRA, SERVO_EXTRA_OUT);
             g_mark = now_ms; g_step = 1;
             break;

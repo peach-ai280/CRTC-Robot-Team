@@ -97,6 +97,9 @@ typedef struct {                    /* SCB */
 #define TIM2_BASE        (APB1PERIPH_BASE + 0x0000UL)
 #define TIM3_BASE        (APB1PERIPH_BASE + 0x0400UL)
 #define TIM4_BASE        (APB1PERIPH_BASE + 0x0800UL)
+/* ★ TIM1 在 APB2 上（高级定时器，寄存器布局和 TIM2~TIM5 一样，
+    只是多一个 BDTR 要求「主输出使能 MOE=1」才肯出波形）。 */
+#define TIM1_BASE        (APB2PERIPH_BASE + 0x2C00UL)
 
 #define RCC_BASE         (AHBPERIPH_BASE + 0x1000UL)
 #define FLASH_R_BASE     (AHBPERIPH_BASE + 0x2000UL)
@@ -122,6 +125,7 @@ typedef struct {                    /* SCB */
 #define AFIO             ((AFIO_TypeDef *)AFIO_BASE)
 #define RCC              ((RCC_TypeDef *)RCC_BASE)
 #define FLASH            ((FLASH_TypeDef *)FLASH_R_BASE)
+#define TIM1             ((TIM_TypeDef *)TIM1_BASE)
 #define TIM2             ((TIM_TypeDef *)TIM2_BASE)
 #define TIM3             ((TIM_TypeDef *)TIM3_BASE)
 #define TIM4             ((TIM_TypeDef *)TIM4_BASE)
@@ -179,6 +183,7 @@ __attribute__((always_inline)) static inline void __WFI(void)
 #define RCC_APB2ENR_IOPBEN    (1UL << 3)
 #define RCC_APB2ENR_IOPCEN    (1UL << 4)
 #define RCC_APB2ENR_ADC1EN    (1UL << 9)
+#define RCC_APB2ENR_TIM1EN    (1UL << 11)   /* ★ 第 5 路舵机（回转 SG90）用 TIM1_CH4=PA11 */
 #define RCC_APB2ENR_SPI1EN    (1UL << 12)
 #define RCC_APB2ENR_USART1EN  (1UL << 14)
 
@@ -191,6 +196,7 @@ __attribute__((always_inline)) static inline void __WFI(void)
 #define __HAL_RCC_GPIOB_CLK_ENABLE()  (RCC->APB2ENR |= RCC_APB2ENR_IOPBEN)
 #define __HAL_RCC_GPIOC_CLK_ENABLE()  (RCC->APB2ENR |= RCC_APB2ENR_IOPCEN)
 #define __HAL_RCC_ADC1_CLK_ENABLE()   (RCC->APB2ENR |= RCC_APB2ENR_ADC1EN)
+#define __HAL_RCC_TIM1_CLK_ENABLE()   (RCC->APB2ENR |= RCC_APB2ENR_TIM1EN)
 #define __HAL_RCC_SPI1_CLK_ENABLE()   (RCC->APB2ENR |= RCC_APB2ENR_SPI1EN)
 #define __HAL_RCC_USART1_CLK_ENABLE() (RCC->APB2ENR |= RCC_APB2ENR_USART1EN)
 #define __HAL_RCC_TIM2_CLK_ENABLE()   (RCC->APB1ENR |= RCC_APB1ENR_TIM2EN)
