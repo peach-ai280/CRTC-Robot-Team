@@ -25,6 +25,13 @@
  *   纯左移：LF/RB 为负、RF/LB 为正
  *   纯逆时针：左两轮负、右两轮正
  *   这三条对不上，说明 config.h 里 MOTOR_x_DIR 或车体尺寸填错了。
+ *
+ * 【板载 LED 心跳（PC13）—— 没有串口也能知道固件在不在跑】
+ *   上电后：快闪 3 下       = 初始化完成，固件跑起来了
+ *   待机时：一秒一闪        = 主循环在转，等着你发指令
+ *   收到指令：快闪约 1.2 秒 = 板子收到了那一字节（串口通不通一眼看出来）
+ *   ├─ LED 一直不亮 / 一直不闪 → 固件没跑起来（或板子没电）
+ *   └─ 闪得很快停不下来      → 串口在疯狂收到垃圾字节（波特率/线序不对）
  * ==========================================================================*/
 
 #include "main.h"
@@ -65,12 +72,18 @@ static volatile char g_cmd = 0;
 static float g_throttle = 1.0f;
 static uint8_t g_demo = 0;
 
+/* ---- 板载 LED 心跳（PC13，低电平点亮）---- */
+static uint32_t g_led_next  = 0;    /* 下次允许翻转的时刻 */
+static uint8_t  g_led_on    = 0;    /* 当前 LED 状态 */
+static uint16_t g_led_flash = 0;    /* >0 时快速闪烁（收到指令的反馈） */
+
 /* 串口收到一个字节 = 一条指令 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
     if (huart->Instance == USART1)
     {
         g_cmd = (char)g_uart1_rx;
+        g_led_flash = 20;           /* 收到东西，快闪约 1.2 秒 */
         HAL_UART_Receive_IT(&huart1, (uint8_t *)&g_uart1_rx, 1);
     }
 }
@@ -112,12 +125,33 @@ int main(void)
     printf("CHASSIS = %s\r\n", CAR_NAME);
     printf("SYSCLK = %lu Hz\r\n", SystemCoreClock);
     printf("cmds: w/s=fwd/back  a/d=strafe  q/e=yaw  z=diag  space=stop  r=demo  +/- =throttle\r\n");
+    printf("LED : fast x3 = boot ok  |  slow = idle  |  fast ~1.2s = cmd received\r\n");
 
+    /* ---- 启动指示：快闪 3 下，肉眼确认固件真的在跑 ---- */
+    for (int i = 0; i < 6; i++)
+    {
+        HAL_GPIO_TogglePin(LED_PORT, LED_PIN);
+        HAL_Delay(100);
+    }
+    HAL_GPIO_WritePin(LED_PORT, LED_PIN, GPIO_PIN_SET);   /* 灭 */
+
+    g_led_next = HAL_GetTick() + 500;
     t_ctrl = t_log = HAL_GetTick();
 
     while (1)
     {
         uint32_t now = HAL_GetTick();
+
+        /* ---- 板载 LED 心跳 ---- */
+        /* 待机 1Hz 慢闪；收到串口指令后短暂快闪，等于"我收到了"的应答 */
+        if ((int32_t)(now - g_led_next) >= 0)
+        {
+            g_led_on ^= 1;
+            HAL_GPIO_WritePin(LED_PORT, LED_PIN,
+                              g_led_on ? GPIO_PIN_RESET : GPIO_PIN_SET);
+            if (g_led_flash > 0) g_led_flash--;
+            g_led_next = now + ((g_led_flash > 0) ? 60u : 500u);
+        }
 
         /* ---- 解析指令 ---- */
         if (g_cmd)
