@@ -74,6 +74,13 @@ BINS = {
     'arm':    os.path.join(ROOT, 'firmware', 'build', 'arm',    'firmware.bin'),
     'ps2':    os.path.join(ROOT, 'firmware', 'build', 'ps2',    'firmware.bin'),
     'vision': os.path.join(ROOT, 'firmware', 'build', 'vision', 'firmware.bin'),
+    # ps2scan：PS2 接线穷举诊断固件（配合 tools/ps2_scan.py，一次性用）
+    'ps2scan': os.path.join(ROOT, 'firmware', 'build', 'ps2scan', 'firmware.bin'),
+    # motionauto：不用手柄、不用串口的底盘自检（上电自己跑一遍就走完）
+    'wheel': os.path.join(ROOT, 'firmware', 'build', 'wheel', 'firmware.bin'),
+    'motionauto': os.path.join(ROOT, 'firmware', 'build', 'motionauto', 'firmware.bin'),
+    # v2：外部裸机工程（无 HAL），由 tools/build_v2.py 编译，与上面各目标互不相干
+    'v2': os.path.join(ROOT, 'firmware_v2', 'build', 'firmware.bin'),
 }
 
 ADDR = '0x08000000'
@@ -366,7 +373,7 @@ def main():
     # ---------- 烧录 ----------
     if arg not in BINS:
         print('不认识的目标：%s' % arg)
-        print('可选：check / unlock / rescue / ps2 / motion / arm / vision / full')
+        print('可选：check / unlock / rescue / ps2 / ps2scan / motion / motionauto / arm / vision / full')
         return 2
 
     bin_path = BINS[arg]
