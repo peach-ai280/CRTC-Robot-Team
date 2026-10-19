@@ -40,8 +40,8 @@
 static uint8_t  g_mode = DEFAULT_MODE;      /* MODE_MANUAL / MODE_SEMI / MODE_FULL */
 static uint8_t  g_estop = 0;
 static uint32_t g_t_ctrl = 0, g_t_servo = 0, g_t_log = 0, g_t_led = 0;
-static float    g_tune_arm  = SERVO_ARM_STOW;
-static float    g_tune_yaw  = SERVO_YAW_STOW;    /* ★ 第 5 路：臂回转 */
+static float    g_tune_arm  = ARM_CAL_DEG_5;     /* ★ 升降（柱坐标 Z 轴），最高档 */
+static float    g_tune_yaw  = SERVO_YAW_STOW;    /* ★ 回转（柱坐标 θ 轴） */
 static float    g_tune_grip = SERVO_GRIP_OPEN;
 static float    g_tune_scoop= SERVO_SCOOP_TRAVEL;
 
@@ -215,21 +215,22 @@ static void handle_keys(uint32_t now)
 #endif
     }
 
-    /* ---- 舵机在线标定 + 手动操作（★ 2026-10-10 按队长要求重排）----
-     *   点按 = ±2°（标定，串口打印角度，抄进 config.h）
+    /* ---- 舵机在线标定 + 手动操作（★ 2026-10-10 按柱坐标臂重排）----
+     *   点按 = ±2°（标定，串口打印角度，抄进 arm_cal.h / config.h）
      *   按住 > 350ms = 连续转 90°/s（手动操作）
      *
-     *   ★ 手柄布局就是参考视频里那三个动作：
-     *       十字 上/下  → 大臂上下摆（平行杆的上下移动）
-     *       十字 左/右  → 臂回转（平行杆在同一平面内转动）
-     *       R2 / L2     → 平行爪 夹紧 / 张开
+     *   ★ 手柄布局 = 柱坐标的三个自由度：
+     *       十字 上/下  → 升降（Z 轴，滑座上下滑）
+     *       十字 左/右  → 回转（θ 轴，整根立柱绕底座转）
+     *       R2 / L2     → 夹爪 夹紧 / 张开
      *   其余：L1 = 全机构收起（检录位）｜R1 = 前铲放/收｜○△□× = 半自动宏
      *
-     *   ⚠ 前铲本来也挂在这里在线标定，现在按键不够用了 ——
-     *     前铲的角度请用 test_arm.c 那个专用固件标（串口 p / ; 两个键），
-     *     标完把结果抄回 config.h 就行，是一次性的活。 */
-    tune_servo(SERVO_ARM,   PSB_PAD_DOWN, PSB_PAD_UP,    &g_tune_arm,   now);
-    tune_servo(SERVO_YAW,   PSB_PAD_RIGHT, PSB_PAD_LEFT, &g_tune_yaw,   now);  /* ★ 左=朝左转 */
+     *   ⚠ 前铲的在线标定按钮不够用了 —— 前铲角度请用 test_arm.c 那个专用固件标
+     *     （串口 p / ; 两个键），标完抄回 config.h 的 SERVO_SCOOP_*。
+     *   ⚠ 升降这一路**不走缓动序列**，是直接给舵机角 —— 标定时务必人盯着，
+     *     升到顶/到底听到"吱吱"就往回退，别硬撑（会把舵机憋死或把 5V 拉垮）。 */
+    tune_servo(SERVO_LIFT,  PSB_PAD_DOWN, PSB_PAD_UP,    &g_tune_arm,   now);  /* ★ 升降 = Z 轴 */
+    tune_servo(SERVO_YAW,   PSB_PAD_RIGHT, PSB_PAD_LEFT, &g_tune_yaw,   now);  /* ★ 回转 = θ 轴（左=朝左转） */
     tune_servo(SERVO_GRIP,  PSB_L2,       PSB_R2,        &g_tune_grip,  now);
     (void)g_tune_scoop;   /* 保留变量，只是为了下个版本改回来方便 */
 
@@ -308,11 +309,23 @@ static void log_task(void)
 
     LOG("V=%.2f | btn=%04X | L(%4d,%4d) R(%4d,%4d)\r\n",
         Sensor_GetVbat(), ps2.btn, ps2.lx, ps2.ly, ps2.rx, ps2.ry);
+
+    /* --- 调试用：手柄没连上时打印 PS2 原始 9 字节，用来判断断在哪一层 ---
+     *   全 FF  = 接收器完全没回应 -> 查 VCC 电压、PA6/PA7(DI/DO) 是否接反、PB0(CS)
+     *   全 00  = 电源或地没接好
+     *   第 3 字节是 5A = 硬件握手已成功 -> RF 链路 OK，问题在解析层
+     *   排完硬件后如果不需要，删掉这个 if 块即可。                          */
+    if (!ps2.connected)
+        LOG("  [PS2-RAW] %02X %02X %02X %02X %02X %02X %02X %02X %02X\r\n",
+            ps2.raw[0], ps2.raw[1], ps2.raw[2], ps2.raw[3], ps2.raw[4],
+            ps2.raw[5], ps2.raw[6], ps2.raw[7], ps2.raw[8]);
+
     LOG("  cmd v=(%+.2f,%+.2f) w=%+.2f | wheel %+.2f %+.2f %+.2f %+.2f\r\n",
         vx, vy, wz, w[0], w[1], w[2], w[3]);
-    LOG("  duty %.2f %.2f %.2f %.2f | arm=%.0f grip=%.0f scoop=%.0f\r\n",
+    LOG("  duty %.2f %.2f %.2f %.2f | lift=%.0fdeg/%.0fmm yaw=%.0f grip=%.0f\r\n",
         Motor_GetDuty(0), Motor_GetDuty(1), Motor_GetDuty(2), Motor_GetDuty(3),
-        Servo_GetAngle(SERVO_ARM), Servo_GetAngle(SERVO_GRIP), Servo_GetAngle(SERVO_SCOOP));
+        Arm_LiftDegNow(), Arm_LiftMmNow(), Servo_GetAngle(SERVO_YAW),
+        Servo_GetAngle(SERVO_GRIP));
     LOG("  limit L%d R%d | macro=%d | mode=%s\r\n",
         Limit_Left(), Limit_Right(), Auto_Current(),
         g_mode == MODE_MANUAL ? "man" : g_mode == MODE_SEMI ? "semi" : "full");
@@ -325,6 +338,43 @@ static void log_task(void)
 }
 
 /* ========================================================================== */
+/* ---------------------------------------------------------------------------
+ * 演示动作（仅 DEMO_RUN = 1 时启用）
+ * 手柄不通时按固定脚本跑一段，用来拍"底盘能运动"的素材。
+ * 时间线（相对上电首次进控制的时刻）：
+ *   0-2s  静止（给拍摄留准备时间）
+ *   2-5s  前进       vx=+0.40
+ *   5-6s  停
+ *   6-9s  原地右转   wz=+0.60
+ *   9-10s 停
+ *   10-13s 后退      vx=-0.35
+ *   13-14s 停
+ *   14-17s 横向平移  vy=+0.35（麦轮特有，画面上比较有辨识度）
+ *   17s 之后 永久停止
+ * -------------------------------------------------------------------------*/
+#if DEMO_RUN
+static uint32_t g_demo_t0 = 0;
+static uint8_t  g_demo_started = 0;
+
+static void demo_cmd(uint32_t now, float *vx, float *vy, float *wz)
+{
+    if (!g_demo_started) { g_demo_started = 1; g_demo_t0 = now; }
+
+    uint32_t t = now - g_demo_t0;
+    *vx = *vy = *wz = 0.0f;
+
+    if      (t <  2000u) { }                      /* 静止 */
+    else if (t <  5000u) { *vx =  0.40f; }        /* 前进 */
+    else if (t <  6000u) { }                      /* 停 */
+    else if (t <  9000u) { *wz =  0.60f; }        /* 原地转 */
+    else if (t < 10000u) { }                      /* 停 */
+    else if (t < 13000u) { *vx = -0.35f; }        /* 后退 */
+    else if (t < 14000u) { }                      /* 停 */
+    else if (t < 17000u) { *vy =  0.35f; }        /* 横移 */
+    /* 17s 之后保持 0 */
+}
+#endif
+
 void App_Init(void)
 {
     LOG("\r\n==== CRTC2026 ROBOT-%d BOOT ====\r\n", ROBOT_ID);
@@ -336,6 +386,13 @@ void App_Init(void)
     Auto_Init();
     FullAuto_Init();
     Vision_Init();
+
+    /* ★★★ PS2 接收器上电后要 0.5~1s 完成内部初始化和射频握手。
+     * 如果在这之前就开始打 SPI 时钟，接收器会进异常状态 —— 之后无论怎么
+     * 轮询它都不回应（raw 全 FF，看上去像"线没接"）。
+     * 这里先等 1.5 秒再跟它通信，给足初始化时间。
+     * 代价：上电慢 1.5 秒，对手柄没有任何副作用。 */
+    HAL_Delay(PS2_POWERON_DELAY_MS);
     PS2_Init();
 
     g_mode  = DEFAULT_MODE;
@@ -404,7 +461,14 @@ void App_Tick(void)
             }
 
             /* 手柄失联保护：绝不保持上一个指令继续跑 */
-            if (!ps2.connected) { vx = vy = wz = 0.0f; }
+            if (!ps2.connected)
+            {
+#if DEMO_RUN
+                demo_cmd(now, &vx, &vy, &wz);   /* 演示模式：脚本动作代替手柄 */
+#else
+                vx = vy = wz = 0.0f;
+#endif
+            }
 
             Chassis_SetTarget(vx, vy, wz);
             Chassis_Update(dt);

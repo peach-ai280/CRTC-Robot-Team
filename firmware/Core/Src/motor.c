@@ -164,8 +164,26 @@ void Motor_OutputAll(float s[4])
     for (uint8_t i = 0; i < 4; i++) Motor_Set(i, s[i]);
 }
 
+/* ★★★ 2026-10-19 安全修正：刹车必须跟着 MOTOR_IDLE_BRAKE 走
+ *
+ * 【为什么】DRV8833 是 IN/IN 型双 H 桥，真值表：
+ *     IN1=0 IN2=0 -> 滑行(coast)
+ *     IN1=1 IN2=0 -> 正转
+ *     IN1=0 IN2=1 -> 反转
+ *     IN1=1 IN2=1 -> 刹车(brake)
+ *   原实现「DIR=高 + PWM=100%」就是 IN1=1/IN2=1 的刹车，逻辑本身没错。
+ *
+ *   但**方向脚那根线一旦松了**，芯片输入端内部下拉把它读成 0，
+ *   于是变成 IN1=1 / IN2=0 = **全速正转** —— 也就是说：
+ *   **按急停，车反而全速冲出去。** 这比不刹还危险。
+ *
+ *   所以 MOTOR_IDLE_BRAKE=0（选滑行停）时，这里也一律滑行。
+ *   代价：急停后车会滑行几厘米，但绝不会有「急停变全速」这种事故。
+ *   ⚠ 赛前若四根方向线都实测可靠，把 MOTOR_IDLE_BRAKE 改回 1，这里会自动恢复硬刹车。
+ */
 void Motor_BrakeAll(void)
 {
+#if MOTOR_IDLE_BRAKE
     for (uint8_t i = 0; i < 4; i++)
     {
         HAL_GPIO_WritePin(MOTOR_DIR_PORT, dir_pin_table[i], GPIO_PIN_SET);
@@ -173,6 +191,9 @@ void Motor_BrakeAll(void)
         g_duty[i] = 1.0f;
         g_was_idle[i] = 1;
     }
+#else
+    Motor_CoastAll();      /* IN1=0 / IN2=0，方向线断了也只是不转 */
+#endif
 }
 
 void Motor_CoastAll(void)

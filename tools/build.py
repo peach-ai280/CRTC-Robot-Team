@@ -51,6 +51,14 @@ TARGETS = {
     'motion_b': ['test_motion.c', 'mecanum.c', 'chassis_diff.c', 'motor.c', 'sensor.c', 'bsp.c'],
     'arm': ['test_arm.c', 'servo.c', 'arm.c', 'bsp.c'],
     'ps2':     ['test_ps2.c', 'ps2.c', 'bsp.c'],
+    # motionauto：**不用手柄、不用串口**的底盘自检。
+    # 上电等 3 秒，然后自己跑 前进/后退/左移/右移/逆时针/顺时针/斜走，
+    # 每段 1.5 秒、间隔 0.8 秒，跑完一轮就永久停住。
+    'wheel': ['test_wheel.c', 'motor.c', 'sensor.c', 'bsp.c'],
+    'motionauto': ['test_chassis_auto.c', 'mecanum.c', 'chassis_diff.c', 'motor.c', 'sensor.c', 'bsp.c'],
+    # ps2scan：一次性诊断固件。把 PA5/PA7/PB0 的三种角色做全排列，
+    # 用软件打时钟硬试六种接线，结果写 RAM 给 tools/ps2_scan.py 读。
+    'ps2scan': ['test_ps2scan.c', 'bsp.c'],
 }
 
 # 每个目标额外加的宏

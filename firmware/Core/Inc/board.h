@@ -63,17 +63,18 @@ extern void MX_TIM4_Init(void);   /* CubeMX 生成 */
 #define MOTOR_RB_DIR_PIN     GPIO_PIN_15
 
 /* --- 舵机 PWM（TIM2 四路 + TIM1_CH4 一路 = 共 5 路，50Hz）----------------- */
-/* ★ 2026-10-10 从 4 路扩到 5 路：新版机械臂是「平行四连杆」，
-   除了原来的 夹爪 / 大臂 / 前铲 / 备用 之外，多了一个**回转舵机**（整条臂绕竖直轴转）。
-   TIM2 的 4 个通道已经用满，第 5 路只能用 TIM1_CH4 = PA11（见 bsp.c 里的说明）。 */
+/* ★ 2026-10-10 机械臂定稿为**柱坐标**（θ 回转 + Z 升降 + 夹爪），
+   所以原来的"大臂俯仰"这一路语义变成"**升降**"（新代码写 SERVO_LIFT）。
+   **引脚与通道一个都没变（接线冻结）**，只是含义变了；舵机型号也由 MG995 换成 SG90。 */
 #define SERVO_TIM            htim2
 #define SERVO_TIM_CH_GRIP    TIM_CHANNEL_1   /* PA0  夹爪      SG90  */
-#define SERVO_TIM_CH_ARM     TIM_CHANNEL_2   /* PA1  大臂俯仰  MG995 */
+#define SERVO_TIM_CH_ARM     TIM_CHANNEL_2   /* PA1  ★臂升降   SG90  */
+#define SERVO_TIM_CH_LIFT    SERVO_TIM_CH_ARM  /* 别名：柱坐标 Z 轴 */
 #define SERVO_TIM_CH_SCOOP   TIM_CHANNEL_3   /* PA2  前铲      SG90  */
 #define SERVO_TIM_CH_EXTRA   TIM_CHANNEL_4   /* PA3  挑杆/洞窟探杆 SG90 */
 
 #define SERVO_TIM_YAW        htim1           /* ★ 第 5 路单独一个定时器 */
-#define SERVO_TIM_CH_YAW     TIM_CHANNEL_4   /* PA11 臂回转    SG90  */
+#define SERVO_TIM_CH_YAW     TIM_CHANNEL_4   /* PA11 ★臂回转   SG90  */
 
 /* --- 传感器 ------------------------------------------------------------- */
 #define LIMIT_L_PORT         GPIOB           /* 对中喇叭口 左微动开关 */

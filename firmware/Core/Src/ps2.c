@@ -39,7 +39,10 @@ static uint8_t ps2_xfer(uint8_t tx)
 {
     uint8_t rx = 0xFF;
     HAL_SPI_TransmitReceive(&PS2_SPI, &tx, &rx, 1, 100);
-    ps2_delay_us(15);                /* 字节间延时，便宜手柄必须要 */
+    /* 字节间延时。原来 15µs，2026-10-18 放宽到 PS2_BYTE_GAP_US：
+       兼容接收器的移位寄存器比原装慢，间隔太短会把后面几个字节吃掉
+       （现象：raw 前两字节 0x00、后面全 FF）。 */
+    ps2_delay_us(PS2_BYTE_GAP_US);
     return rx;
 }
 
@@ -52,7 +55,9 @@ static uint8_t ps2_xfer(uint8_t tx)
 static void ps2_cmd(const uint8_t *tx, uint8_t *rx, uint8_t len)
 {
     PS2_CS_LOW();
-    ps2_delay_us(20);
+    /* 片选建立时间：拉低后要等接收器认出"我被选中了"再打时钟。
+       原来 20µs，放宽到 PS2_CS_SETUP_US。 */
+    ps2_delay_us(PS2_CS_SETUP_US);
     for (uint8_t i = 0; i < len; i++)
         rx[i] = ps2_xfer(tx[i]);
     PS2_CS_HIGH();

@@ -4,11 +4,15 @@
  *            比较寄存器直接填微秒数（500~2500），非常直观
  * ★ TIM1_CH4（PA11，臂回转）参数完全一样，只是挂在另一个定时器上，
  *   所以下面用「每路一个定时器句柄」的对照表，而不是单一句柄。
+ *
+ * ⚠ 2026-10-10 机械臂改成柱坐标后，SERVO_ARM 的语义 = **升降（Z 轴）**，
+ *   舵机型号也从 MG995 换成 SG90。引脚/通道没变（接线冻结）。
  * ==========================================================================*/
 
 #include "servo.h"
 #include "board.h"
 #include "config.h"
+#include "arm_cal.h"
 #include <math.h>
 
 /* 每路舵机自己的定时器句柄与通道。★ 第 5 路在 TIM1 上，别写成同一个。 */
@@ -55,12 +59,12 @@ void Servo_Init(void)
     }
 
     /* 上电就收到“检录姿态”：机构全部收起，别一上电乱甩。
-     * ★ 顺序很重要：先把臂摆平（ARM_STOW）再回转到正后方，
-     *   不能带着大角度差硬转 —— 那是扫齿的标准姿势。 */
+     * ★ 顺序很重要：先把滑座升到最高（爪尖 95 > 甲板 88.5）再回转到正后方，
+     *   不能低位硬转 —— 那是爪插甲板 / 扫齿的标准姿势。 */
     Servo_SetNow(SERVO_GRIP,  SERVO_GRIP_OPEN);
-    Servo_SetNow(SERVO_ARM,   SERVO_ARM_STOW);
+    Servo_SetNow(SERVO_LIFT,  ARM_CAL_DEG_5);   /* ★ 柱坐标 Z 轴：最高档 */
     Servo_SetNow(SERVO_YAW,   SERVO_YAW_STOW);
-    Servo_SetNow(SERVO_SCOOP, SERVO_SCOOP_TRAVEL);
+    Servo_SetNow(SERVO_SCOOP, SCOOP_ANG_STOW);
     Servo_SetNow(SERVO_EXTRA, SERVO_EXTRA_IN);
 }
 
