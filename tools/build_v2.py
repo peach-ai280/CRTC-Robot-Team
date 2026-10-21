@@ -179,9 +179,9 @@ def main():
     print('=' * 56)
     print(' firmware_v2 构建（裸机工程，无 HAL）')
     if SERVO:
-        print(' 模式：车二 —— 打开挑杆舵机（TIM2_CH3 / PA2）')
+        print(' 模式：车二 —— 打开挑杆舵机（TIM2_CH4 / PA3）')
     else:
-        print(' 模式：车一 —— 不启用舵机，PA2 无输出')
+        print(' 模式：车一 —— 不启用舵机，PA3 无输出')
     print('=' * 56)
     rc = build()
     if rc != 0:

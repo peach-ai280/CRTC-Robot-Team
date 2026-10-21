@@ -3,10 +3,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* 车二的上下摆臂（挑杆）舵机：TIM2_CH3 / PA2，50Hz 标准舵机信号。
+/* 车二的上下摆臂（挑杆）舵机：TIM2_CH4 / PA3，50Hz 标准舵机信号。
+ * 引脚与 docs/硬件接线与焊接指南.md 的冻结表一致：PA3 = TIM2_CH4 = 备用/挑杆。
  *
  * 车二用：BOARD_SERVO_ENABLE=1（tools/build_v2.py --servo）
- * 车一用：BOARD_SERVO_ENABLE=0 → 下面全部编译成空函数，PA2 一个电平都不输出，
+ * 车一用：BOARD_SERVO_ENABLE=0 → 下面全部编译成空函数，PA3 一个电平都不输出，
  *        车一的行为与加这个模块之前完全一致。
  */
 void servo_lift_init(uint32_t now_ms);

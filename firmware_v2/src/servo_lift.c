@@ -20,17 +20,18 @@ void servo_lift_init(uint32_t now_ms)
 {
     RCC_APB2ENR |= 1u << 2;   /* IOPA 时钟 */
     RCC_APB1ENR |= 1u << 0;   /* TIM2 时钟 */
-    /* PA2 = TIM2_CH3：复用推挽输出 50MHz（CNF=10, MODE=11 → 0xB）。 */
+    /* PA3 = TIM2_CH4：复用推挽输出 50MHz（CNF=10, MODE=11 → 0xB）。
+     * 与 docs/硬件接线与焊接指南.md 的引脚表一致：PA3 = TIM2_CH4 = 备用/挑杆。 */
     gpio_mode_local(GPIOA, BOARD_SERVO_PORT_PIN, 0xbu);
 
     /* 64MHz / (63+1) = 1MHz，一个计数就是 1us。 */
     TIM2->PSC = 63u;
     TIM2->ARR = 19999u;             /* 20000us = 20ms = 50Hz */
-    TIM2->CCMR2 = 6u << 4;          /* OC3M = 110  PWM1，OC3PE = 0 无预装载 */
-    TIM2->CCER = 1u << 8;           /* CC3E = 1，高电平有效 */
+    TIM2->CCMR2 = 6u << 12;         /* OC4M = 110  PWM1，OC4PE = 0 无预装载 */
+    TIM2->CCER = 1u << 12;          /* CC4E = 1，高电平有效 */
     TIM2->EGR = 1u;                 /* 立刻把 PSC 装入 */
     TIM2->SR = 0u;
-    TIM2->CCR3 = g_us;
+    TIM2->CCR4 = g_us;
     TIM2->CR1 = 1u;                 /* 启动 */
     g_last_ms = now_ms;
 }
@@ -40,7 +41,7 @@ void servo_lift_set_us(uint16_t pulse_us)
     if (pulse_us < BOARD_SERVO_MIN_US) pulse_us = BOARD_SERVO_MIN_US;
     if (pulse_us > BOARD_SERVO_MAX_US) pulse_us = BOARD_SERVO_MAX_US;
     g_us = pulse_us;
-    TIM2->CCR3 = g_us;
+    TIM2->CCR4 = g_us;
 }
 
 uint16_t servo_lift_get_us(void)
@@ -61,7 +62,7 @@ void servo_lift_step(bool up, bool down, uint32_t now_ms)
     if (target > (int32_t)BOARD_SERVO_MAX_US) target = (int32_t)BOARD_SERVO_MAX_US;
     if ((uint16_t)target != g_us) {
         g_us = (uint16_t)target;
-        TIM2->CCR3 = g_us;
+        TIM2->CCR4 = g_us;
     }
 }
 

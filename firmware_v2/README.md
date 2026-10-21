@@ -156,15 +156,15 @@ python tools/diag_v2.py
 再由车一在地面收起。驱动它只需要**一路舵机信号**，所以固件里做成编译开关，不分裂成两套代码：
 
 ```bash
-python tools/build_v2.py            # 车一：不启用舵机，PA2 一个电平都不输出
-python tools/build_v2.py --servo    # 车二：打开 TIM2_CH3 / PA2
+python tools/build_v2.py            # 车一：不启用舵机，PA3 一个电平都不输出
+python tools/build_v2.py --servo    # 车二：打开 TIM2_CH4 / PA3
 python tools/flash.py v2            # 烧车一那版
 python tools/flash.py v2s           # 烧车二那版
 ```
 
 | 项 | 值 |
 |---|---|
-| 信号脚 | **PA2 = TIM2_CH3**（TIM2 在本工程里原本完全空闲，TIM4 给电机、SysTick 给时基） |
+| 信号脚 | **PA3 = TIM2_CH4**（与 `docs/硬件接线与焊接指南.md` 的冻结表一致：PA0 夹爪 / PA1 臂升降 / PA2 前铲 / PA3 备用·挑杆） |
 | 频率 | 50Hz，`PSC=63` → 1MHz 计数，`ARR=19999` → 20ms |
 | 脉宽 | 600~2400µs，上电中位 1500µs |
 | 速度 | 按住 R1/R2 每秒走 900µs，全程约 2 秒 |

@@ -29,15 +29,17 @@
 #define PS2_CS_PIN  0u
 #define PS2_HALF_BIT_US 4u
 
-/* ===== 车二：上下摆动的挑杆舵机（TIM2_CH3 / PA2）=====
- * 车一没有这个机构，保持 0：PA2 一个电平都不输出，车一与原固件行为一致。
+/* ===== 车二：上下摆动的挑杆舵机（TIM2_CH4 / PA3）=====
+ * 引脚沿用 docs/硬件接线与焊接指南.md 的冻结表：PA0 夹爪 / PA1 臂升降 /
+ * PA2 前铲 / PA3 备用·挑杆，四路都在 TIM2 上。车二没有前铲，用第 4 路挑杆。
+ * 车一没有这个机构，保持 0：PA3 一个电平都不输出，车一与原固件行为一致。
  * 车二编译时加 -DBOARD_SERVO_ENABLE=1（tools/build_v2.py --servo）。
  * 机械装好后先空载试：把 MIN/MAX 收窄到机构真正的行程端点，别让舵机顶死。
  */
 #ifndef BOARD_SERVO_ENABLE
 #define BOARD_SERVO_ENABLE 0
 #endif
-#define BOARD_SERVO_PORT_PIN   2u       /* PA2 */
+#define BOARD_SERVO_PORT_PIN   3u       /* PA3 = TIM2_CH4 */
 #define BOARD_SERVO_MIN_US     600u     /* 最低位（收车姿态） */
 #define BOARD_SERVO_MAX_US     2400u    /* 最高位 */
 #define BOARD_SERVO_INIT_US    1500u    /* 上电中位，别让机构一上电就甩到底 */
