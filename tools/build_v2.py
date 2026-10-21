@@ -37,15 +37,20 @@ CC      = os.path.join(TOOLS, 'arm-none-eabi-gcc.exe')
 OBJCOPY = os.path.join(TOOLS, 'arm-none-eabi-objcopy.exe')
 SIZE    = os.path.join(TOOLS, 'arm-none-eabi-size.exe')
 
-# 六个源文件（与 .uvprojx 里登记的一致）
+# 七个源文件（前六个与 .uvprojx 里登记的原始工程一致；servo_lift.c 是我们加的）
 SRCS = ['main.c', 'board.c', 'ps2_bus.c', 'robot_control.c',
-        'driver_encode.c', 'startup.c']
+        'driver_encode.c', 'startup.c', 'servo_lift.c']
 
 CFLAGS = [
     '-mcpu=cortex-m3', '-mthumb', '-std=c11', '-Os',
     '-Wall', '-Wextra',
     '-ffunction-sections', '-fdata-sections',
 ]
+# --servo：编车二用的那版（打开 TIM2_CH3/PA2 的挑杆舵机）。
+# 不加这个参数的产物与车一现在车上跑的那版完全一致，PA2 一个电平都不输出。
+SERVO = '--servo' in sys.argv
+if SERVO:
+    CFLAGS = CFLAGS + ['-DBOARD_SERVO_ENABLE=1']
 LDFLAGS = [
     '-T', os.path.join(FW, 'stm32f103c8.ld'),   # ★ 位于 firmware_v2/ 根，不在 src/
     '--specs=nosys.specs',
@@ -53,9 +58,10 @@ LDFLAGS = [
     '-Wl,-Map=' + os.path.join(OUT, 'firmware.map'),
 ]
 
-ELF = os.path.join(OUT, 'firmware.elf')
-BIN = os.path.join(OUT, 'firmware.bin')
-HEX = os.path.join(OUT, 'firmware.hex')
+SUFFIX = '_servo' if SERVO else ''
+ELF = os.path.join(OUT, 'firmware%s.elf' % SUFFIX)
+BIN = os.path.join(OUT, 'firmware%s.bin' % SUFFIX)
+HEX = os.path.join(OUT, 'firmware%s.hex' % SUFFIX)
 
 # 无危害的链接期警告（newlib 文件类 syscall 空桩）
 BENIGN = ('is not implemented and will always fail',
@@ -172,6 +178,10 @@ def verify():
 def main():
     print('=' * 56)
     print(' firmware_v2 构建（裸机工程，无 HAL）')
+    if SERVO:
+        print(' 模式：车二 —— 打开挑杆舵机（TIM2_CH3 / PA2）')
+    else:
+        print(' 模式：车一 —— 不启用舵机，PA2 无输出')
     print('=' * 56)
     rc = build()
     if rc != 0:

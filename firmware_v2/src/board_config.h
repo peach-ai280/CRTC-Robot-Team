@@ -29,6 +29,20 @@
 #define PS2_CS_PIN  0u
 #define PS2_HALF_BIT_US 4u
 
+/* ===== 车二：上下摆动的挑杆舵机（TIM2_CH3 / PA2）=====
+ * 车一没有这个机构，保持 0：PA2 一个电平都不输出，车一与原固件行为一致。
+ * 车二编译时加 -DBOARD_SERVO_ENABLE=1（tools/build_v2.py --servo）。
+ * 机械装好后先空载试：把 MIN/MAX 收窄到机构真正的行程端点，别让舵机顶死。
+ */
+#ifndef BOARD_SERVO_ENABLE
+#define BOARD_SERVO_ENABLE 0
+#endif
+#define BOARD_SERVO_PORT_PIN   2u       /* PA2 */
+#define BOARD_SERVO_MIN_US     600u     /* 最低位（收车姿态） */
+#define BOARD_SERVO_MAX_US     2400u    /* 最高位 */
+#define BOARD_SERVO_INIT_US    1500u    /* 上电中位，别让机构一上电就甩到底 */
+#define BOARD_SERVO_RATE_US_S  900u     /* 按住时每秒走 900us，全程约 2 秒 */
+
 /* 电机顺序：LF左前，RF右前，LB左后，RB右后。
  * TIM4_CH1/PB6 -> LF IN1；PB12 -> LF IN2。
  * TIM4_CH2/PB7 -> RF IN1；PB13 -> RF IN2。

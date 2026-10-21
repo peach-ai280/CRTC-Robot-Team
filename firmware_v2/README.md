@@ -150,7 +150,39 @@ python tools/diag_v2.py
 **这两条限制（无脱机、只悬空）是供电件缺料造成的，不是控制逻辑没跑通。**
 补件到货后按顺序补：电池 + 车载降压 → 脱机空载 → 落地低速 → 落地全速。
 
-## 七、和 `firmware/` 是什么关系
+## 七、车二：挑杆舵机（`--servo` 版）
+
+车二（B 车）与车一**同一套底盘和遥控**，只多一个"上下摆动的挑杆"——把高处物块戳下来，
+再由车一在地面收起。驱动它只需要**一路舵机信号**，所以固件里做成编译开关，不分裂成两套代码：
+
+```bash
+python tools/build_v2.py            # 车一：不启用舵机，PA2 一个电平都不输出
+python tools/build_v2.py --servo    # 车二：打开 TIM2_CH3 / PA2
+python tools/flash.py v2            # 烧车一那版
+python tools/flash.py v2s           # 烧车二那版
+```
+
+| 项 | 值 |
+|---|---|
+| 信号脚 | **PA2 = TIM2_CH3**（TIM2 在本工程里原本完全空闲，TIM4 给电机、SysTick 给时基） |
+| 频率 | 50Hz，`PSC=63` → 1MHz 计数，`ARR=19999` → 20ms |
+| 脉宽 | 600~2400µs，上电中位 1500µs |
+| 速度 | 按住 R1/R2 每秒走 900µs，全程约 2 秒 |
+| 操作 | **R1 按住抬、R2 按住降**，松开保持 |
+
+失效安全：**只有收到合法 PS2 帧、已按 START 启用、且未急停时才动**。
+失联或急停时舵机**停在当前角度不动**，不会半空掉下来砸到车。
+
+> ⚠ 舵机电源**必须**从降压模块取 5V，不能从蓝丸的 3.3V 针取。MG995 一动就是 1A 级电流，
+> 3.3V 那一路一带就塌，板子会复位。
+>
+> ⚠ 上电时舵机会先跑到中位（1500µs）。机构两端**必须留机械限位**，
+> 否则一上电就顶死在死点上，塑料齿轮很快扫齿。装好后把 `BOARD_SERVO_MIN_US` /
+> `BOARD_SERVO_MAX_US` 收窄到机构真实行程。
+
+接线与机械做法见交付件 `车二_接线作业单.md`。
+
+## 八、和 `firmware/` 是什么关系
 
 两个**互不相干**的工程，产物分开放，谁也不会覆盖谁：
 
@@ -165,7 +197,7 @@ python tools/diag_v2.py
 `firmware/` 不是废弃代码——它是舵机、机械臂、储仓那套功能的唯一实现，
 中期之后要接着往下做就回到它。**但中期考核交的这一版车，跑的是 `firmware_v2`。**
 
-## 八、参数速查
+## 九、参数速查
 
 | 参数 | 位置 | 现值 | 含义 |
 |---|---|---|---|
@@ -178,6 +210,10 @@ python tools/diag_v2.py
 | `ROBOT_SLEW_PER_SECOND` | `robot_control.h` | `1000` | 占空比变化速率，0→100% 约 1s |
 | `ROBOT_AXIS_DEADZONE` | `robot_control.h` | `12` | 摇杆回中死区 |
 | `ROBOT_LINK_TIMEOUT_MS` | `robot_control.h` | `100` | 失联判据 |
+| `BOARD_SERVO_ENABLE` | `board_config.h` | `0` | 车二编译时用 `--servo` 置 1 |
+| `BOARD_SERVO_MIN_US` / `MAX_US` | `board_config.h` | `600` / `2400` | 舵机行程两端，装车后按实际机构收窄 |
+| `BOARD_SERVO_INIT_US` | `board_config.h` | `1500` | 上电中位 |
+| `BOARD_SERVO_RATE_US_S` | `board_config.h` | `900` | 按住时每秒走多少 µs |
 
 调试时用 Keil Watch 或 `tools/verify_v2.py` 看这几个变量：
 `g_robot`（启用/急停状态）、`g_debug`（四轮目标输出）、

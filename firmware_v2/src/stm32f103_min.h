@@ -15,6 +15,7 @@ typedef struct {
 #define GPIOA ((GpioRegs *)(uintptr_t)0x40010800u)
 #define GPIOB ((GpioRegs *)(uintptr_t)0x40010c00u)
 #define GPIOC ((GpioRegs *)(uintptr_t)0x40011000u)
+#define TIM2  ((TimerRegs *)(uintptr_t)0x40000000u)
 #define TIM4  ((TimerRegs *)(uintptr_t)0x40000800u)
 #define RCC_CR      REG32(0x40021000u)
 #define RCC_CFGR    REG32(0x40021004u)

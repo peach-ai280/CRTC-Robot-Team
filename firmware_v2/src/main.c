@@ -2,6 +2,7 @@
 #include "board_config.h"
 #include "robot_control.h"
 #include "ps2_bus.h"
+#include "servo_lift.h"
 #include "stm32f103_min.h"
 
 /* ST-Link 调试时可在 Watch 观察这两个变量，无需额外调试串口。 */
@@ -11,6 +12,7 @@ typedef struct {
     uint8_t ps2_mode;
     bool connected, armed, emergency;
     int16_t wheel[4];
+    uint16_t servo_us;
 } RobotDebug;
 volatile RobotDebug g_debug;
 
@@ -24,6 +26,7 @@ int main(void)
         for (;;) { }
     }
     ps2_service_init(&ps2,board_millis());
+    servo_lift_init(board_millis());
     last_run = board_millis();
     for (;;) {
         uint32_t now = board_millis();
@@ -48,6 +51,15 @@ int main(void)
             g_debug.armed = g_robot.armed;
             g_debug.emergency = g_robot.emergency_latched;
             for (i = 0u; i < 4u; ++i) g_debug.wheel[i] = g_robot.wheel[i];
+            /* 挑杆舵机：只有收到有效帧、已启用且未急停时才动；否则保持角度不动。 */
+            servo_lift_step(g_robot.connected && g_robot.armed &&
+                            !g_robot.emergency_latched &&
+                            (g_robot.latest.buttons & PS2_R1) != 0u,
+                            g_robot.connected && g_robot.armed &&
+                            !g_robot.emergency_latched &&
+                            (g_robot.latest.buttons & PS2_R2) != 0u,
+                            now);
+            g_debug.servo_us = servo_lift_get_us();
             if (g_robot.emergency_latched) board_led(((now/100u)&1u) != 0u);
             else if (g_robot.armed) board_led(true);
             else if (g_robot.connected) board_led(((now/500u)&1u) != 0u);
