@@ -32,3 +32,5 @@ desktop.ini
 *.zip
 *.7z
 *.rar
+# 例外：组委会下发的参考模型要进仓库，见 docs/refs/README.md
+!docs/refs/*.zip
