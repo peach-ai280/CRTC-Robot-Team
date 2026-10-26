@@ -147,7 +147,7 @@ CRTC-Robot-Team/
 | 2 号车 | 无实物，方案停在设计稿 |
 | 机械臂（柱坐标三自由度） | 模型和 STEP 出完了，没打印、没装配，最终未采用 |
 | 3D 打印件 | 已出 G-code，实打了一部分 |
-| 调试与演示录像 | 见 `docs/videos/` |
+| 调试与演示录像 | 三段，见 [`docs/videos/`](docs/videos/README.md) |
 
 ---
 
