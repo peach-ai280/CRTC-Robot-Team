@@ -12,7 +12,6 @@ typedef struct {
     uint8_t ps2_mode;
     bool connected, armed, emergency;
     int16_t wheel[4];
-    uint16_t servo_us;
 } RobotDebug;
 volatile RobotDebug g_debug;
 
@@ -25,8 +24,8 @@ int main(void)
         /* 初始化失败绝不进入运动循环；若已有看门狗则等待其复位。 */
         for (;;) { }
     }
+    servo_lift_init(board_millis()); /* BOARD_SERVO_ENABLE=0 时是空函数 */
     ps2_service_init(&ps2,board_millis());
-    servo_lift_init(board_millis());
     last_run = board_millis();
     for (;;) {
         uint32_t now = board_millis();
@@ -45,25 +44,22 @@ int main(void)
             /* 事务耗时后重新取时间，不把“开始读手柄”的时间当成接收时间。 */
             now = board_millis();
             robot_step(&g_robot,valid ? &input : NULL,now,board_local_stop());
+            /* 舵机：按住 R1 升起、按住 R2 下降，松开保持当前角度。
+             * 只在收到有效帧时动；BOARD_SERVO_ENABLE=0（车一默认）时是空函数，
+             * PA3 一个电平都不输出，不影响原有行为。 */
+            servo_lift_step(valid && (input.buttons & PS2_R1) != 0u,
+                            valid && (input.buttons & PS2_R2) != 0u,
+                            now);
             board_motors_apply(g_robot.wheel);
             g_debug.last_loop_ms = now;
             g_debug.connected = g_robot.connected;
             g_debug.armed = g_robot.armed;
             g_debug.emergency = g_robot.emergency_latched;
             for (i = 0u; i < 4u; ++i) g_debug.wheel[i] = g_robot.wheel[i];
-            /* 挑杆舵机：只有收到有效帧、已启用且未急停时才动；否则保持角度不动。 */
-            servo_lift_step(g_robot.connected && g_robot.armed &&
-                            !g_robot.emergency_latched &&
-                            (g_robot.latest.buttons & PS2_R1) != 0u,
-                            g_robot.connected && g_robot.armed &&
-                            !g_robot.emergency_latched &&
-                            (g_robot.latest.buttons & PS2_R2) != 0u,
-                            now);
-            g_debug.servo_us = servo_lift_get_us();
             if (g_robot.emergency_latched) board_led(((now/100u)&1u) != 0u);
             else if (g_robot.armed) board_led(true);
             else if (g_robot.connected) board_led(((now/500u)&1u) != 0u);
-            else board_led(((now/250u)&1u) != 0u);
+            else board_led(true); /* 未连手柄时常亮：烧完就有反应，一眼看出程序在跑 */
             board_watchdog_feed();
         }
         cpu_wait(); /* 每1ms被SysTick唤醒；不使用阻塞式HAL_Delay。 */

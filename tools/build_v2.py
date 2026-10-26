@@ -41,6 +41,20 @@ SIZE    = os.path.join(TOOLS, 'arm-none-eabi-size.exe')
 SRCS = ['main.c', 'board.c', 'ps2_bus.c', 'robot_control.c',
         'driver_encode.c', 'startup.c', 'servo_lift.c']
 
+# --selftest：电机自检固件。把 main.c 换成 selftest_main.c，
+# 上电后自动按序列驱动四个轮子，完全不需要 PS2 手柄。
+# 产物仍写到 firmware.bin，所以 flash.py v2 可以直接烧。
+SELFTEST = '--selftest' in sys.argv
+if SELFTEST:
+    SRCS[0] = 'selftest_main.c'
+
+# --demo：整车自动演示（四轮 + 舵机一起跑，不用手柄）。
+# 把 main.c 换成 demo_main.c。舵机要同时加 --servo 才有脉冲。
+# 产物写到 firmware_demo.bin，不覆盖正式版。
+DEMO = '--demo' in sys.argv
+if DEMO:
+    SRCS[0] = 'demo_main.c'
+
 CFLAGS = [
     '-mcpu=cortex-m3', '-mthumb', '-std=c11', '-Os',
     '-Wall', '-Wextra',
@@ -51,6 +65,13 @@ CFLAGS = [
 SERVO = '--servo' in sys.argv
 if SERVO:
     CFLAGS = CFLAGS + ['-DBOARD_SERVO_ENABLE=1']
+
+# --car2：按 2 号车（车二）的马达线序编译。
+# 两台车后轮线序不同（1 号车后两轮都反接，2 号车只有左后反接），
+# 不加这个参数就是 1 号车的配置，别混用。
+CAR2 = '--car2' in sys.argv
+if CAR2:
+    CFLAGS = CFLAGS + ['-DBOARD_CAR2=1']
 LDFLAGS = [
     '-T', os.path.join(FW, 'stm32f103c8.ld'),   # ★ 位于 firmware_v2/ 根，不在 src/
     '--specs=nosys.specs',
@@ -58,7 +79,13 @@ LDFLAGS = [
     '-Wl,-Map=' + os.path.join(OUT, 'firmware.map'),
 ]
 
-SUFFIX = '_servo' if SERVO else ''
+SUFFIX = ''
+if DEMO:
+    SUFFIX += '_demo'
+if SERVO:
+    SUFFIX += '_servo'
+if CAR2:
+    SUFFIX += '_car2'
 ELF = os.path.join(OUT, 'firmware%s.elf' % SUFFIX)
 BIN = os.path.join(OUT, 'firmware%s.bin' % SUFFIX)
 HEX = os.path.join(OUT, 'firmware%s.hex' % SUFFIX)
@@ -180,8 +207,14 @@ def main():
     print(' firmware_v2 构建（裸机工程，无 HAL）')
     if SERVO:
         print(' 模式：车二 —— 打开挑杆舵机（TIM2_CH4 / PA3）')
+    elif SELFTEST:
+        print(' 模式：★ 电机自检 —— 上电自动跑动作序列，不需要手柄')
     else:
         print(' 模式：车一 —— 不启用舵机，PA3 无输出')
+    if CAR2:
+        print(' 电机符号：**2 号车**（左后 -1 / 右后 +1）')
+    else:
+        print(' 电机符号：**1 号车**（后两轮均为 -1）')
     print('=' * 56)
     rc = build()
     if rc != 0:

@@ -83,6 +83,10 @@ BINS = {
     'v2': os.path.join(ROOT, 'firmware_v2', 'build', 'firmware.bin'),
     # v2s：同上，但打开了 PA2 的挑杆舵机（车二用）。编译：build_v2.py --servo
     'v2s': os.path.join(ROOT, 'firmware_v2', 'build', 'firmware_servo.bin'),
+    # v2c / v2cs：2 号车（车二）的马达线序（右后 +1，与 1 号车不同）。
+    #   编译：build_v2.py --car2  ／  build_v2.py --car2 --servo
+    'v2c':  os.path.join(ROOT, 'firmware_v2', 'build', 'firmware_car2.bin'),
+    'v2cs': os.path.join(ROOT, 'firmware_v2', 'build', 'firmware_servo_car2.bin'),
 }
 
 ADDR = '0x08000000'

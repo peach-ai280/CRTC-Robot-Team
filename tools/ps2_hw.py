@@ -40,6 +40,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import flash                                                   # noqa: E402
 
+# SWD 时钟。这块克隆版 ST-LINK + 杜邦线在 OpenOCD 默认 4000 kHz 下经常
+# `Cannot detect cache` / `Examination failed`，降到 300 kHz 就稳。
+# 需要更快时：set SWD_SPEED=500
+SWD_SPEED = os.environ.get('SWD_SPEED', '300')
+
 # ---------------------------------------------------------------- 寄存器地址
 GPIOA = 0x40010800
 GPIOB = 0x40010C00
@@ -93,6 +98,7 @@ class Session(object):
             return None, ''
 
         cmd = [oc, '-s', scr, '-f', flash.IFACE_CFG, '-f', flash.TARGET_CFG,
+               '-c', 'adapter speed %s' % SWD_SPEED,
                '-c', 'init']
         for c in self.cmds:
             cmd += ['-c', c]
