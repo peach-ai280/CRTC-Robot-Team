@@ -87,6 +87,12 @@ BINS = {
     #   编译：build_v2.py --car2  ／  build_v2.py --car2 --servo
     'v2c':  os.path.join(ROOT, 'firmware_v2', 'build', 'firmware_car2.bin'),
     'v2cs': os.path.join(ROOT, 'firmware_v2', 'build', 'firmware_servo_car2.bin'),
+    # servotest：只动舵机、轮子全程停。手柄不通时单独验舵机这一路。
+    #   编译：build_v2.py --servotest --servo
+    'servotest': os.path.join(ROOT, 'firmware_v2', 'build',
+                              'firmware_servotest_servo.bin'),
+    # v2demo：整车自动演示（四轮 + 舵机），不用手柄。build_v2.py --demo --servo
+    'v2demo': os.path.join(ROOT, 'firmware_v2', 'build', 'firmware_demo_servo.bin'),
 }
 
 ADDR = '0x08000000'

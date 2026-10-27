@@ -55,6 +55,13 @@ DEMO = '--demo' in sys.argv
 if DEMO:
     SRCS[0] = 'demo_main.c'
 
+# --servotest：只动舵机、四个轮子全程 0。
+# 手柄不通时单独验证舵机这一路（位置舵机 / 连续旋转舵机 / 行程超限）。
+# 必须同时加 --servo 才有脉冲，否则 PA3 不输出。
+SERVOTEST = '--servotest' in sys.argv
+if SERVOTEST:
+    SRCS[0] = 'servo_test_main.c'
+
 CFLAGS = [
     '-mcpu=cortex-m3', '-mthumb', '-std=c11', '-Os',
     '-Wall', '-Wextra',
@@ -83,6 +90,8 @@ LDFLAGS = [
 SUFFIX = ''
 if DEMO:
     SUFFIX += '_demo'
+if SERVOTEST:
+    SUFFIX += '_servotest'
 if SERVO:
     SUFFIX += '_servo'
 if CAR2:
