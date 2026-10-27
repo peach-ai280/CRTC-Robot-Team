@@ -752,8 +752,16 @@ def verdict(elec, hs):
         return
 
     if pa6 == 'HIGH':
-        print('✅ PA6（DAT）这根线上有东西在驱动它 = 接收器活着，DAT 也接过来了。')
-        print('   那问题就在 SPI 模式或者 CS/CLK 的时序上，不是接线。')
+        print('⚠ PA6（DAT）读出恒定高。注意：这一条**不能**当成"接收器活着"的证据。')
+        print('   接收器的 DAT 线上通常带一个 3.3V 上拉电阻，10k 量级的阻值足以压过')
+        print('   STM32 内部 40k 的下拉，所以"没通电的接收器"和"通电但不回话的接收器"')
+        print('   都会读成恒定高。这个测试只能排除"线完全没接"和"短到地"两种情况。')
+        print('')
+        print('   唯一靠得住的判据是：发完命令后 DAT 有没有被拉低。')
+        print('   固件那边抓到的回帧是 9 个 FF，说明它一次都没拉低过。')
+        print('   → 下一步该做的两件事：')
+        print('     1) 万用表量接收器 VCC-GND，应当是 3.2~3.3V（不是 5V）')
+        print('     2) 量 PA7 到接收器 DI 这根线通不通（两头插紧没有、杜邦头压好没有）')
         return
 
     if pa6 == 'FLOAT':
@@ -1256,8 +1264,10 @@ def main():
     print('  GPIOA_CRL = 0x%08X   GPIOB_CRL = 0x%08X   SPI1_CR1 = 0x%08X'
           % (a_crl, b_crl, cr1))
     if (cr1 & 0x40) == 0:
-        print('  ⚠ SPI1 的 SPE 没置位 —— 说明固件可能没跑到 PS2 初始化，'
-              '或者烧的不是 full。')
+        # 注意：firmware_v2 的 PS2 是 GPIO 位翻转（软件 SPI），根本不用 SPI1 外设，
+        # 所以 SPE=0 是正常的。这条警告只对老版 firmware/（硬件 SPI）有意义。
+        print('  · SPI1 的 SPE 没置位（firmware_v2 用软件 GPIO 位翻转，这是正常的；')
+        print('    下面 B 组握手测试因此发不出数据，只看 A 组电气结果即可）')
     else:
         print('  ✓ SPI1 已使能（SPE=1），模式 3 的位也对得上')
 

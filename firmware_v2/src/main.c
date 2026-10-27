@@ -7,6 +7,9 @@
 
 /* ST-Link 调试时可在 Watch 观察这两个变量，无需额外调试串口。 */
 RobotControl g_robot;
+/* 提成全局是为了能用 OpenOCD 直接读 stage / fail_count：
+ * PS2 不通时先看这两个数，就能分清是"卡在配置事务里"还是"轮询了但没有回帧"。 */
+Ps2Service g_ps2;
 typedef struct {
     uint32_t valid_frames, invalid_frames, last_loop_ms;
     uint8_t ps2_mode;
@@ -17,7 +20,6 @@ volatile RobotDebug g_debug;
 
 int main(void)
 {
-    Ps2Service ps2;
     uint32_t last_run;
     robot_init(&g_robot);
     if (!board_init()) {
@@ -25,7 +27,7 @@ int main(void)
         for (;;) { }
     }
     servo_lift_init(board_millis()); /* BOARD_SERVO_ENABLE=0 时是空函数 */
-    ps2_service_init(&ps2,board_millis());
+    ps2_service_init(&g_ps2,board_millis());
     last_run = board_millis();
     for (;;) {
         uint32_t now = board_millis();
@@ -34,7 +36,7 @@ int main(void)
             bool valid;
             unsigned i;
             last_run = now;
-            valid = ps2_service_poll(&ps2,!g_robot.armed,now,&input);
+            valid = ps2_service_poll(&g_ps2,!g_robot.armed,now,&input);
             if (valid) {
                 ++g_debug.valid_frames;
                 g_debug.ps2_mode = input.mode;

@@ -32,10 +32,11 @@ sys.path.insert(0, HERE)
 import flash   # 复用 find_openocd / IFACE_CFG / TARGET_CFG / ROOT
 
 # 这三个是兜底值，正常情况下 resolve_symbols() 会用 ELF 里的真实地址覆盖。
-# 兜底值对应 firmware_servo.bin 2026-10-27 那一版，仅供参考。
+# 兜底值仅对应 2026-10-27 那一版，仅供参考，别当准。
 G_DEBUG = 0x20000004
-G_LEN   = 0x20000048
-G_BYTES = 0x20000049
+G_LEN   = 0x20000054
+G_BYTES = 0x20000055
+G_PS2   = None      # Ps2Service 的地址，用来读 stage / fail_count
 
 MODE_NAME = {0x41: '数字红灯', 0x73: '模拟绿灯', 0x79: '模拟红灯'}
 
@@ -76,13 +77,7 @@ def pick_elf():
     return max(elfs, key=os.path.getmtime)
 
 
-def resolve_symbols():
-    """返回 (g_debug, g_ps2_last_length, g_ps2_last_bytes, 说明文字)"""
-    global G_DEBUG, G_LEN, G_BYTES
-    nm = find_nm()
-    elf = pick_elf()
-    if not nm or not elf or not os.path.exists(elf):
-        return G_DEBUG, G_LEN, G_BYTES, '找不到 nm 或 ELF，用内置地址（可能与固件不符）'
+def elf_symbols(elf, nm):
     p = subprocess.run([nm, '-n', elf], capture_output=True, text=True, timeout=60)
     sym = {}
     for line in (p.stdout or '').splitlines():
@@ -92,16 +87,34 @@ def resolve_symbols():
                 sym[parts[2]] = int(parts[0], 16)
             except ValueError:
                 pass
+    return sym
+
+
+def resolve_symbols():
+    """返回 (g_debug, g_ps2_last_length, g_ps2_last_bytes, 说明文字)"""
+    global G_DEBUG, G_LEN, G_BYTES, G_PS2
+    nm = find_nm()
+    elf = pick_elf()
+    if not nm or not elf or not os.path.exists(elf):
+        return G_DEBUG, G_LEN, G_BYTES, '找不到 nm 或 ELF，用内置地址（可能与固件不符）'
+    sym = elf_symbols(elf, nm)
     need = ['g_debug', 'g_ps2_last_length', 'g_ps2_last_bytes']
     if not all(k in sym for k in need):
         return G_DEBUG, G_LEN, G_BYTES, 'ELF 里没找到符号，用内置地址（可能与固件不符）'
     G_DEBUG, G_LEN, G_BYTES = sym['g_debug'], sym['g_ps2_last_length'], sym['g_ps2_last_bytes']
+    # g_ps2 可能不存在（老版本固件里它是 main 的局部变量），有就读
+    G_PS2 = sym.get('g_ps2')
     return G_DEBUG, G_LEN, G_BYTES, '符号地址取自 %s' % os.path.basename(elf)
 
 
 def read_mem(oc, scr, addr, words):
-    """读 words 个 32bit 字，返回 (字节列表, 原始输出)"""
-    cmds = ['init', 'halt',
+    """读 words 个 32bit 字，返回 (字节列表, 原始输出)
+
+    speed 固定 500kHz：这块克隆版 ST-LINK 在默认 4MHz 下读几次就会掉
+    （Failed to write memory at 0xe00fffec / Examination failed），
+    降速之后基本一次就成。诊断脚本不在乎这点速度。
+    """
+    cmds = ['adapter speed 500', 'init', 'halt',
             'mdw 0x%08X %d' % (addr, words),
             'resume', 'shutdown']
     cmd = [oc, '-s', scr, '-f', flash.IFACE_CFG, '-f', flash.TARGET_CFG]
@@ -116,6 +129,31 @@ def read_mem(oc, scr, addr, words):
             v = int(w, 16)
             data += [v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >> 24) & 0xFF]
     return data, out
+
+
+def check_firmware(oc, scr):
+    """比对板上的 Reset 向量和 ELF 里的 Reset_Handler。
+
+    这一步不能省。读内存诊断的前提是"板上跑的正是这份 ELF"，
+    否则每个变量的地址都是别的固件的布局，脚本照样能拼出
+    看起来很像样的数字（2026-10-27 就因此误报过一次"PS2 已通"：
+    板上是 demo 固件，g_debug 那个地址上其实是 demo 的 g_wheel，
+    两个 500 的速度值被当成了帧计数）。
+    """
+    nm = find_nm()
+    elf = pick_elf()
+    if not (nm and elf and os.path.exists(elf)):
+        return None, None, None
+    exp = elf_symbols(elf, nm).get('Reset_Handler')
+    if exp is None:
+        return None, None, None
+    d, _ = read_mem(oc, scr, 0x08000000, 2)
+    if len(d) < 8:
+        return None, None, exp
+    brd = int.from_bytes(bytes(d[4:8]), 'little')
+    # 向量表里的 Reset 带 Thumb 位（最低位恒为 1），符号表里的地址不带，
+    # 所以只比高位，不能直接相等比较。
+    return ((brd & ~1) == (exp & ~1)), brd, exp
 
 
 def u32(b, off):
@@ -158,6 +196,18 @@ def report(dbg, ln, raw):
     print()
     print('  ===== 判定 =====')
     vf = u32(dbg, 0)
+
+    # 先验合理性，再看帧计数。顺序不能反：
+    # 地址错位时 valid_frames 照样可能是个大数，先看它就会误判成"通了"。
+    if ln > 21:
+        print('    ✗ 数据不可信：last_length = %d，PS2 帧长只可能是 5/9/21（0 = 还没收到）' % ln)
+        print('      → 这个地址上的东西不是 PS2 帧缓冲')
+        print('      → 大概率板上跑的不是这份 ELF，先确认固件版本')
+        return 'BAD'
+    if vf > 0 and ln == 0:
+        print('    ✗ 自相矛盾：valid_frames = %d 但 last_length = 0' % vf)
+        print('      → 这两个变量不在同一个结构里，地址或固件版本对不上')
+        return 'BAD'
     if vf > 0:
         print('    ★★★ PS2 已通！收到 %d 帧合法数据，模式 0x%02X' % (vf, mode))
         return 'OK'
@@ -167,9 +217,11 @@ def report(dbg, ln, raw):
         return 'DEAD'
     raw_n = [raw[i] for i in range(min(ln, 21))]
     if raw_n and all(b == 0xFF for b in raw_n):
-        print('    ✗ 收到 %d 个字节，但全是 FF → 接收器在线但不应答' % ln)
-        print('      → 这是之前一直遇到的现象：命令发出去了，对方不返回值')
-        print('      → 最大嫌疑：CS/CLK 到了但 CMD(DI) 没到，或 DAT(DO) 断开')
+        print('    ✗ 回帧 %d 个字节全是 FF → DAT 线从头到尾没被拉低过' % ln)
+        print('      这不等于"接收器在线但装死"，更常见的是它根本没开口：')
+        print('      · 接收器没电或电压不够（VCC 要 3.3V，别接 5V；GND 要共）')
+        print('      · DAT(DO) 没接到 PA6，或者 DI/DO 接反了（这是最常见的一种）')
+        print('      · CS / CLK 没到，接收器压根没被选中')
         return 'FF'
     if ln >= 2 and raw[1] in MODE_NAME:
         print('    ★ 收到合法帧但 valid_frames 还是 0（可能刚上电）')
@@ -197,7 +249,33 @@ def main():
     print(' g_debug=0x%08X  last_length=0x%08X  last_bytes=0x%08X'
           % (G_DEBUG, G_LEN, G_BYTES))
 
+    ok, brd, exp = check_firmware(oc, scr)
+    if ok is False:
+        print()
+        print('[!] 板上固件和这份 ELF 不是同一版')
+        print('    板上 Reset = 0x%08X' % brd)
+        print('    ELF  期望 = 0x%08X' % exp)
+        print('    读内存诊断的前提是两者一致，否则每个变量的地址都错位，')
+        print('    读出来的数字看着像样但全是别的变量。先烧录：')
+        print('      python tools/flash.py v2s')
+        return 2
+    if ok is True:
+        print(' 固件校验：板上 Reset = 0x%08X，与 ELF 一致' % brd)
+
+    # 服务自己的状态：stage 非 0 说明正卡在配置事务里，
+    # 这才是"被锁"的直接证据，比看帧数更快。
+    if G_PS2:
+        svc, _ = read_mem(oc, scr, G_PS2, 3)
+        if len(svc) >= 12:
+            st = svc[0]
+            fail = int.from_bytes(bytes(svc[2:4]), 'little')
+            print(' 服务状态：stage = %d   fail_count = %d' % (st, fail))
+            if st != 0:
+                print('   ⚠ stage = %d → 正卡在配置事务（1=enter 2=mode 3=rumble 4=leave）' % st)
+                print('     这就是被锁的样子。断电重上电，或再烧一次都能解。')
+
     last = None
+    prev_vf = None
     for i in range(samples):
         dbg, out = read_mem(oc, scr, G_DEBUG, 6)
         if len(dbg) < 24:
@@ -210,6 +288,11 @@ def main():
         print('\n--- 第 %d/%d 次采样 ---' % (i + 1, samples))
         verdict = report(dbg, ln[0] if ln else 0, raw)
         last = verdict
+        vf_now = u32(dbg, 0)
+        if prev_vf is not None and vf_now < prev_vf:
+            print('    ⚠ valid_frames 比上次采样还小（%d → %d）：' % (prev_vf, vf_now))
+            print('      要么中间复位过，要么读的不是同一个变量')
+        prev_vf = vf_now
 
         if i != samples - 1:
             import time
@@ -220,8 +303,9 @@ def main():
     print(' 结论: %s' % {
         'OK':   'PS2 通了，这套固件可以进入实车',
         'DEAD': '一帧都没有 —— 接收器没回应',
-        'FF':   '全 FF —— 接收器在线但不应答（老问题）',
+        'FF':   '全 FF —— DAT 线一直是高，接收器没有回话（多半没电/线没到位）',
         'ODD':  '收到异常数据，看原始字节',
+        'BAD':  '读数不可信 —— 先确认板上固件和 ELF 是同一版',
     }.get(last, '?'))
     print('=' * 58)
     return 0
