@@ -140,6 +140,56 @@ def main():
         if score == 0xFF and best is None:
             best = p
 
+    # ---- 从 24 行数据反推每个脚的真实电平 -------------------------------
+    # 一根脚只要在某一轮里当过 DAT，它读到的值就直接反映这根线当时的电平：
+    #   9 个字节全 00 → 这根线被钉在低电平（被短到 GND，或者芯片引脚已损坏）
+    #   9 个字节全 FF → 这根线被钉在高电平（被短到 3.3V/5V）
+    # 正常接线下，DAT 在"没被选中"时应该是高，在传输中会有 0/1 交替，
+    # 所以四种读数都会出现。
+    levels = {}
+    for p in range(24):
+        base = 8 + p * 10
+        d_pin = NAMES[PERMS[p][3]]
+        rx = [w[base + i] & 0xFF for i in range(9)]
+        if all(b == 0x00 for b in rx):
+            v = 'L'
+        elif all(b == 0xFF for b in rx):
+            v = 'H'
+        else:
+            v = '?'
+        levels.setdefault(d_pin, set()).add(v)
+
+    pinned = {}
+    for pin in NAMES:
+        s = levels.get(pin, set())
+        if s == {'L'}:
+            pinned[pin] = 'L'
+        elif s == {'H'}:
+            pinned[pin] = 'H'
+
+    if pinned:
+        print('')
+        print('=' * 82)
+        print('★ 电气结论（按每个脚当 DAT 时的读数反推）')
+        print('=' * 82)
+        print('')
+        for pin in NAMES:
+            if pin in pinned:
+                why = '低电平 0V' if pinned[pin] == 'L' else '高电平 3.3V'
+                print('   %-3s 被钉死在%s' % (pin, why))
+            else:
+                print('   %-3s 有变化（正常，或者接的是接收器的输出脚）' % pin)
+        print('')
+        print('  一根脚被钉死的意思是：把它的内部上拉/下拉打开，电平都不跟着走。')
+        print('  这已经不是"接错了对象"了——接错对象只是两根线互换，')
+        print('  交换之后扫描能查出来。钉死是这根线被短到电源或地，')
+        print('  或者是这颗芯片上这个脚已经坏了（ESD 打穿后内部对地/对电源短路）。')
+        print('')
+        print('  ★ 先断线再量一次，区分是"线短了"还是"芯片坏了"：')
+        print('     1) 拔掉接收器那 4 根信号线，重新跑一遍本脚本')
+        print('     2) 还是钉死 → 芯片引脚坏了，换一块 Blue Pill（备用板）')
+        print('     3) 不钉死了 → 是线的问题，一根一根插回去，插一根量一次')
+
     print('')
     print('=' * 82)
     if best is not None:
