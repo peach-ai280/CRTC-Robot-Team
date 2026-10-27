@@ -72,19 +72,31 @@ static bool poll_packet(RobotInput *out)
 }
 void ps2_service_init(Ps2Service *service, uint32_t now_ms)
 {
-    *service = (Ps2Service){0u,now_ms,now_ms + 300u};
+    /* stage 直接置 4：上电第一件事是发一帧"退出配置模式"（leave）。
+     *
+     * 原因：如果上一次运行把接收器留在了配置模式里，断电不一定能救回来
+     * （ST-LINK 烧完只复位 MCU，接收器一直是带电的，它不会自己复位），
+     * 此后再怎么轮询都拿不到有效帧，看起来就像"接收器坏了"。
+     * leave 这条命令的作用就是退配置模式，本身绝不会把接收器推进去，
+     * 所以放在上电第一帧是无条件安全的。
+     */
+    *service = (Ps2Service){4u,0u,now_ms,now_ms + 300u};
 }
 bool ps2_service_poll(Ps2Service *service, bool allow_config,
                       uint32_t now_ms, RobotInput *out)
 {
     static const uint8_t enter[] = {0x01,0x43,0x00,0x01,0x00};
     static const uint8_t mode[] = {0x01,0x44,0x00,0x01,0x03,0x00,0x00,0x00,0x00};
-    static const uint8_t rumble_off[] = {0x01,0x4d,0x00,0xff,0xff,0xff,0xff,0xff,0xff};
+    /* 关震动：后面跟 0x00 表示小/大马达都关。原来写 0xFF 有把马达打开的风险，
+     * 白耗电，也会让"能通但抖动"这种假象更容易出现。 */
+    static const uint8_t rumble_off[] = {0x01,0x4d,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
     static const uint8_t leave[] = {0x01,0x43,0x00,0x00,0x5a,0x5a,0x5a,0x5a,0x5a};
     bool valid;
     *out = (RobotInput){0};
     /* 包括退出配置后的等待，不能只在 stage 非零时检查间隔。 */
     if (!due(now_ms,service->due_ms)) return false;
+    /* 一旦进入事务就必须走完 4 步，中途不理会 allow_config。
+     * 这是为了保证 leave 一定发出去——停在 enter 之后才是最坏的情况。 */
     if (service->stage != 0u) {
         switch (service->stage) {
         case 1u: command(enter,sizeof enter); break;
@@ -99,8 +111,33 @@ bool ps2_service_poll(Ps2Service *service, bool allow_config,
     }
     valid = poll_packet(out);
     service->due_ms = now_ms + BOARD_CONTROL_MS;
-    /* 仅在未启用行驶时协商模拟模式，不能在车行驶时做配置事务。 */
-    if (allow_config && (!valid || out->mode == 0x41u) &&
+    if (valid) {
+        service->fail_count = 0u;
+    } else if (service->fail_count < 0xFFFFu) {
+        ++service->fail_count;
+    }
+    /* 连续 250ms 读不到有效帧，补发一帧 leave 试着把接收器拉回轮询模式。
+     * 阈值取得比较松，是因为链路真没接好时这条命令根本到不了，
+     * 多发几次没有代价；而万一接收器确实停在配置模式里，它就能自愈。
+     * 同样地，leave 只退出、不进入，不会制造出新的锁定状态。 */
+    if (!valid && service->fail_count >= 25u &&
+        due(now_ms,service->next_config_ms)) {
+        service->stage = 4u;
+        service->due_ms = now_ms + 10u;
+        service->next_config_ms = now_ms + 2000u;
+        return false;
+    }
+    /* 仅在未启用行驶时协商模拟模式，不能在车行驶时做配置事务。
+     *
+     * ⚠ 2026-10-27 修正：原来条件是 `!valid || out->mode == 0x41`，
+     *   即"读不到有效帧"也会触发配置事务，而且每 2 秒重试一次。
+     *   链路本来不通时配置命令根本到不了接收器，这个事务除了把接收器
+     *   反复推进配置模式之外没有任何作用；一旦某次 enter 被收到、
+     *   而紧接着的 exit 没被收到，接收器就停在配置模式里，
+     *   此后正常轮询（01 42 00）永远拿不到 5A，形成"一直被锁"的假象。
+     *   现在只在"确实读到了，但手柄处在数字模式"时才协商，
+     *   这才是这段事务的本来用途。 */
+    if (allow_config && valid && out->mode == 0x41u &&
         due(now_ms,service->next_config_ms)) {
         service->stage = 1u;
         service->due_ms = now_ms + 10u;

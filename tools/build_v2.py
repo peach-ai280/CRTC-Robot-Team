@@ -60,8 +60,9 @@ CFLAGS = [
     '-Wall', '-Wextra',
     '-ffunction-sections', '-fdata-sections',
 ]
-# --servo：编车二用的那版（打开 TIM2_CH3/PA2 的挑杆舵机）。
-# 不加这个参数的产物与车一现在车上跑的那版完全一致，PA2 一个电平都不输出。
+# --servo：打开舵机（TIM2_CH4 / PA3）。
+# 不加这个参数的产物一个电平都不往 PA3 输出，与只跑底盘的版本一致。
+# 注意：这个开关只决定"有没有舵机"，和 1/2 号车的线序无关（那是 --car2）。
 SERVO = '--servo' in sys.argv
 if SERVO:
     CFLAGS = CFLAGS + ['-DBOARD_SERVO_ENABLE=1']
@@ -206,11 +207,11 @@ def main():
     print('=' * 56)
     print(' firmware_v2 构建（裸机工程，无 HAL）')
     if SERVO:
-        print(' 模式：车二 —— 打开挑杆舵机（TIM2_CH4 / PA3）')
+        print(' 模式：启用舵机（TIM2_CH4 / PA3）')
     elif SELFTEST:
         print(' 模式：★ 电机自检 —— 上电自动跑动作序列，不需要手柄')
     else:
-        print(' 模式：车一 —— 不启用舵机，PA3 无输出')
+        print(' 模式：不启用舵机，PA3 无输出')
     if CAR2:
         print(' 电机符号：**2 号车**（左后 -1 / 右后 +1）')
     else:

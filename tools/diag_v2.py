@@ -21,6 +21,16 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import flash
 
+# g_debug 的地址不再写死：bss 布局会随代码改动平移，
+# 2026-10-27 加变量后它就整体挪了 4 字节。这里复用 verify_v2 的符号解析。
+try:
+    from verify_v2 import resolve_symbols as _resolve_symbols
+except Exception:
+    _resolve_symbols = None
+
+# 兜底值，解析失败时才用（对应 2026-10-27 的 firmware_servo 那一版）
+G_DEBUG = 0x20000004
+
 REG = {
     'RCC_CR':    0x40021000,
     'RCC_CFGR':  0x40021004,
@@ -72,10 +82,17 @@ def main():
         return 1
     oc, scr = oc[0], oc[1]
 
+    global G_DEBUG
+    if _resolve_symbols is not None:
+        try:
+            G_DEBUG = _resolve_symbols()[0]
+        except Exception:
+            pass
+
     cmds = ['init', 'halt', 'reg pc', 'reg sp', 'reg xpsr']
     for name, addr in REG.items():
         cmds.append('mdw 0x%08X 1' % addr)
-    cmds.append('mdw 0x20000000 6')     # g_debug 24B
+    cmds.append('mdw 0x%08X 6' % G_DEBUG)     # g_debug 24B
     cmds.append('resume')
     cmds.append('shutdown')
 
@@ -175,8 +192,8 @@ def main():
         print('  读不到')
 
     # ---- 主循环有没有跑 ----
-    print('\n[主循环 g_debug @0x20000000]')
-    db = mdw(out, 0x20000000, 6)
+    print('\n[主循环 g_debug @0x%08X]' % G_DEBUG)
+    db = mdw(out, G_DEBUG, 6)
     if db and len(db) >= 6:
         valid = db[0]
         invalid = db[1]
