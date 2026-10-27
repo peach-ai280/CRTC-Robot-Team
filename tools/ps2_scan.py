@@ -8,9 +8,13 @@ A5 / A7 / A6 / B0 四个脚在「CLK / CMD / CS / DAT」四个角色之间做全
 （4! = 24 种），每种硬发一帧 9 字节。谁回话，真实接线就是哪一种。
 
 用法规（在 CRTC 目录下，ST-LINK 接好、板子通电）：
-    python tools/ps2_scan.py            烧 ps2scan → 读结果 → 给结论
-    python tools/ps2_scan.py --read     只读（已经烧过 ps2scan 了）
-    python tools/ps2_scan.py --restore  扫完把 full 固件烧回去
+    python tools/ps2_scan.py                烧 ps2scan → 读结果 → 给结论
+    python tools/ps2_scan.py --read         只读（已经烧过 ps2scan 了）
+    python tools/ps2_scan.py --restore v2s  扫完把 v2s（车一）固件烧回去
+    python tools/ps2_scan.py --restore full 扫完把 full 固件烧回去
+
+⚠ 跑之前先确认接收器真的通着电（VCC–GND 之间要有 3.2~3.3V 或 4.8~5V）。
+  接收器没电的话，24 种接法全都不会回话，这个扫描就白跑了。
 
 ━━ 结论怎么用 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 正常接线应该是：  CLK→A5   CMD→A7   CS→B0   DAT→A6
@@ -95,7 +99,11 @@ def show_elec(sig):
 def main():
     args = sys.argv[1:]
     read_only = '--read' in args
-    restore = '--restore' in args
+    restore = None
+    if '--restore' in args:
+        i = args.index('--restore')
+        nxt = args[i + 1] if i + 1 < len(args) else ''
+        restore = nxt if nxt and not nxt.startswith('-') else 'full'
 
     print('')
     print('PS2 接线穷举扫描 —— A5/A7/A6/B0 四个脚 × 四个角色 = 24 种接法全试')
@@ -165,17 +173,24 @@ def main():
         print('24 种接法全都没回话。')
         print('')
         print('  这一下可以确定：**不是接线顺序的问题**了。')
-        print('  接收器被供电、被驱动着，但对任何时钟都不回应。真正的可能只剩：')
+        print('  四个脚随便怎么排都不回话，说明接收器根本没有在 DAT 上开口。')
+        print('  按这个顺序查（第 1 条最常见）：')
         print('')
-        print('   ① 接收器要 5V 才能工作（很多便宜模块是 5V 设计的，3.3V 下')
-        print('      指示灯亮但逻辑走不动）。→ 把 XTARK 的 VCC 接到 STM32 的 5V 孔试一次。')
-        print('   ② 手柄和接收器没对上频（手柄那颗灯应该是"闪几下后常亮"）。')
-        print('   ③ 接收器坏了 / 引脚被焊坏 / 那 6 个孔有虚焊。')
+        print('   ① 接收器没通电。它不吃 ST-LINK 那点 3.3V 也要有电——量一下')
+        print('      接收器 VCC 和 GND 两个孔之间的电压，应该是 3.2~3.3V；')
+        print('      如果是 0V，就是电源没接上（继电器没开 / 接在 COM 上被切断了）。')
+        print('   ② 接收器要 5V。有些便宜模块 3.3V 下指示灯亮但逻辑走不动，')
+        print('      把 VCC 换到 5V 那一路再扫一次。')
+        print('   ③ 手柄和接收器没对上频。手柄那颗灯应该是"闪几下后常亮"，')
+        print('      一直慢闪就是没对上。')
+        print('   ④ 那几个孔虚焊 / 杜邦头没压好。换线、换孔各试一次。')
 
     if restore:
-        if flash_target('full'):
-            print('')
-            print('>> 已把 full 固件烧回去。')
+        print('')
+        if flash_target(restore):
+            print('>> 已把 %s 固件烧回去。' % restore)
+        else:
+            print('[警告] 烧回 %s 失败，板子现在还是 ps2scan。' % restore)
     else:
         print('')
         print('（板子现在跑的是 ps2scan；python tools/ps2_scan.py --restore 可烧回 full）')

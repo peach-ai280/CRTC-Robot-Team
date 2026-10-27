@@ -92,7 +92,10 @@ def read_block(oc, scr, addr, nbytes):
     """读一段连续内存，返回 bytes。"""
     base = addr & ~3
     nwords = (addr - base + nbytes + 3) // 4
-    cmds = ['init', 'halt', 'mdw 0x%08X %d' % (base, nwords), 'resume', 'exit']
+    # 这块克隆版 ST-LINK V2 在 4MHz 下写 debug 寄存器会报
+    # "Failed to write memory at 0xe00fffec"，降到 500kHz 就稳。
+    cmds = ['adapter speed 500', 'init', 'halt',
+            'mdw 0x%08X %d' % (base, nwords), 'resume', 'exit']
     cmd = [oc, '-s', scr, '-f', flash.IFACE_CFG, '-f', flash.TARGET_CFG]
     for c in cmds:
         cmd += ['-c', c]
