@@ -1,0 +1,65 @@
+<svg viewBox="0 0 680 640" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>整车最终接线总图</title>
+<desc>电池经无线继电器、降压模块分出 7.4V 与 5V 两条主干，供电给 STM32、电机驱动、舵机、PS2 接收器</desc>
+<defs>
+<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+<text x="40" y="28" font-family="sans-serif" font-size="15" font-weight="600" fill="#2c2c2a">整车最终接线总图</text>
+<text x="40" y="46" font-family="sans-serif" font-size="13" fill="#5f5e5a">电池 → 继电器 → 主干分流 → 各元件；红 7.4V / 橙 5V / 黑 地 / 蓝 信号</text>
+<rect x="40" y="64" width="130" height="52" rx="8" fill="#fcebeb" stroke="#e24b4a" stroke-width="0.5"/>
+<text x="105" y="86" font-family="sans-serif" font-size="13" font-weight="600" fill="#a32d2d" text-anchor="middle" dominant-baseline="central">电池 7.4V</text>
+<text x="105" y="102" font-family="sans-serif" font-size="11" fill="#a32d2d" text-anchor="middle" dominant-baseline="central">2×18650</text>
+<rect x="210" y="56" width="150" height="110" rx="10" fill="#e6f1fb" stroke="#185fa5" stroke-width="0.5"/>
+<text x="285" y="76" font-family="sans-serif" font-size="13" font-weight="600" fill="#0c447c" text-anchor="middle" dominant-baseline="central">无线继电器</text>
+<text x="285" y="92" font-family="sans-serif" font-size="11" fill="#5f5e5a" text-anchor="middle" dominant-baseline="central">-V +V NO COM NC</text>
+<text x="228" y="114" font-family="sans-serif" font-size="11" fill="#2c2c2a" dominant-baseline="central">COM←电池+</text>
+<text x="228" y="130" font-family="sans-serif" font-size="11" fill="#2c2c2a" dominant-baseline="central">NO→7.4V</text>
+<text x="228" y="146" font-family="sans-serif" font-size="11" fill="#854f0b" dominant-baseline="central">+V←5V</text>
+<text x="228" y="160" font-family="sans-serif" font-size="11" fill="#5f5e5a" dominant-baseline="central">-V←GND</text>
+<line x1="170" y1="90" x2="210" y2="90" stroke="#e24b4a" stroke-width="2" marker-end="url(#arr)"/>
+<text x="176" y="82" font-family="sans-serif" font-size="11" fill="#a32d2d">电池+ → COM</text>
+<rect x="410" y="56" width="140" height="110" rx="10" fill="#faeeda" stroke="#ba7517" stroke-width="0.5"/>
+<text x="480" y="76" font-family="sans-serif" font-size="13" font-weight="600" fill="#854f0b" text-anchor="middle" dominant-baseline="central">降压模块</text>
+<text x="480" y="92" font-family="sans-serif" font-size="11" fill="#633806" text-anchor="middle" dominant-baseline="central">IN+ IN- / OUT+ OUT-</text>
+<text x="428" y="114" font-family="sans-serif" font-size="11" fill="#a32d2d" dominant-baseline="central">IN+←7.4V</text>
+<text x="428" y="130" font-family="sans-serif" font-size="11" fill="#5f5e5a" dominant-baseline="central">IN-←GND</text>
+<text x="428" y="146" font-family="sans-serif" font-size="11" fill="#ba7517" dominant-baseline="central">OUT+→5V</text>
+<text x="428" y="160" font-family="sans-serif" font-size="11" fill="#5f5e5a" dominant-baseline="central">OUT-→GND</text>
+<line x1="360" y1="90" x2="410" y2="90" stroke="#e24b4a" stroke-width="2" marker-end="url(#arr)"/>
+<text x="366" y="82" font-family="sans-serif" font-size="11" fill="#a32d2d">NO → 7.4V</text>
+<rect x="40" y="200" width="20" height="330" rx="10" fill="#e24b4a"/>
+<text x="70" y="214" font-family="sans-serif" font-size="12" font-weight="600" fill="#a32d2d">7.4V 主干</text>
+<rect x="200" y="200" width="20" height="330" rx="10" fill="#ba7517"/>
+<text x="230" y="214" font-family="sans-serif" font-size="12" font-weight="600" fill="#854f0b">5V 主干</text>
+<rect x="360" y="200" width="20" height="330" rx="10" fill="#888780"/>
+<text x="390" y="214" font-family="sans-serif" font-size="12" font-weight="600" fill="#5f5e5a">地主干</text>
+<line x1="480" y1="111" x2="50" y2="200" stroke="#e24b4a" stroke-width="2"/>
+<line x1="480" y1="141" x2="200" y2="200" stroke="#ba7517" stroke-width="2"/>
+<line x1="480" y1="160" x2="360" y2="200" stroke="#888780" stroke-width="2"/>
+<rect x="500" y="210" width="150" height="60" rx="8" fill="#eaf3de" stroke="#3b6d11" stroke-width="0.5"/>
+<text x="575" y="232" font-family="sans-serif" font-size="13" font-weight="600" fill="#27500a" text-anchor="middle" dominant-baseline="central">电机驱动 DRV8833</text>
+<text x="575" y="250" font-family="sans-serif" font-size="11" fill="#5f5e5a" text-anchor="middle" dominant-baseline="central">VM←7.4V  GND←地</text>
+<rect x="500" y="300" width="150" height="60" rx="8" fill="#e6f1fb" stroke="#185fa5" stroke-width="0.5"/>
+<text x="575" y="322" font-family="sans-serif" font-size="13" font-weight="600" fill="#0c447c" text-anchor="middle" dominant-baseline="central">STM32 Blue Pill</text>
+<text x="575" y="340" font-family="sans-serif" font-size="11" fill="#5f5e5a" text-anchor="middle" dominant-baseline="central">3.3V←5V稳压  GND←地</text>
+<rect x="500" y="390" width="150" height="60" rx="8" fill="#fbeaf0" stroke="#993556" stroke-width="0.5"/>
+<text x="575" y="412" font-family="sans-serif" font-size="13" font-weight="600" fill="#72243e" text-anchor="middle" dominant-baseline="central">舵机 SG90</text>
+<text x="575" y="430" font-family="sans-serif" font-size="11" fill="#5f5e5a" text-anchor="middle" dominant-baseline="central">VCC←5V  GND←地</text>
+<rect x="500" y="470" width="150" height="60" rx="8" fill="#e6f1fb" stroke="#185fa5" stroke-width="0.5"/>
+<text x="575" y="492" font-family="sans-serif" font-size="13" font-weight="600" fill="#0c447c" text-anchor="middle" dominant-baseline="central">PS2 接收器</text>
+<text x="575" y="510" font-family="sans-serif" font-size="11" fill="#5f5e5a" text-anchor="middle" dominant-baseline="central">VCC←3.3V  GND←地</text>
+<line x1="500" y1="240" x2="50" y2="240" stroke="#e24b4a" stroke-width="1.5"/>
+<line x1="500" y1="255" x2="370" y2="255" stroke="#888780" stroke-width="1.5"/>
+<line x1="500" y1="330" x2="200" y2="330" stroke="#ba7517" stroke-width="1.5"/>
+<line x1="500" y1="345" x2="370" y2="345" stroke="#888780" stroke-width="1.5"/>
+<line x1="500" y1="420" x2="200" y2="420" stroke="#ba7517" stroke-width="1.5"/>
+<line x1="500" y1="435" x2="370" y2="435" stroke="#888780" stroke-width="1.5"/>
+<line x1="500" y1="500" x2="200" y2="500" stroke="#ba7517" stroke-width="1.5"/>
+<line x1="500" y1="515" x2="370" y2="515" stroke="#888780" stroke-width="1.5"/>
+<rect x="40" y="556" width="610" height="68" rx="12" fill="#fcebeb" stroke="#e24b4a" stroke-width="0.5"/>
+<text x="60" y="578" font-family="sans-serif" font-size="13" font-weight="600" fill="#a32d2d">信号线（ST-LINK 之外，另一组，别和电源混）</text>
+<text x="60" y="598" font-family="sans-serif" font-size="12" fill="#a32d2d">PS2：CLK→PA5、CMD→PA7、DAT→PA6、ATT→PB0；舵机信号→PA3；电机 IN1~IN4→PB6~PB9</text>
+<text x="60" y="616" font-family="sans-serif" font-size="12" fill="#a32d2d">施工顺序：先接地 → 再 7.4V → 再 5V → 最后信号线；电池最后一步接</text>
+</svg>

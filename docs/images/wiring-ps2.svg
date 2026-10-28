@@ -1,0 +1,60 @@
+<svg viewBox="0 0 680 360" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>PS2 接收器接线图</title>
+<desc>PS2 接收器 6 根线接 Blue Pill：DAT→PA6、CMD→PA7、CLK→PA5、ATT→PB0、VDD→3.3V、GND→GND</desc>
+<defs>
+<marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+<rect x="40" y="24" width="260" height="300" rx="12" fill="#e6f1fb" stroke="#185fa5" stroke-width="0.5"/>
+<text x="60" y="48" font-family="sans-serif" font-size="14" font-weight="600" fill="#0c447c">PS2 接收器（6 孔）</text>
+<g font-family="sans-serif">
+<rect x="60" y="64" width="220" height="38" rx="8" fill="#fff" stroke="#378add" stroke-width="0.5"/>
+<text x="72" y="87" font-size="13" font-weight="600" fill="#2c2c2a" dominant-baseline="central">DAT / DO</text>
+<text x="180" y="87" font-size="12" fill="#5f5e5a" dominant-baseline="central">数据出</text>
+<rect x="60" y="110" width="220" height="38" rx="8" fill="#fff" stroke="#378add" stroke-width="0.5"/>
+<text x="72" y="133" font-size="13" font-weight="600" fill="#2c2c2a" dominant-baseline="central">CMD / DI</text>
+<text x="180" y="133" font-size="12" fill="#5f5e5a" dominant-baseline="central">数据入</text>
+<rect x="60" y="156" width="220" height="38" rx="8" fill="#fff" stroke="#378add" stroke-width="0.5"/>
+<text x="72" y="179" font-size="13" font-weight="600" fill="#2c2c2a" dominant-baseline="central">CLK / SCK</text>
+<text x="180" y="179" font-size="12" fill="#5f5e5a" dominant-baseline="central">时钟</text>
+<rect x="60" y="202" width="220" height="38" rx="8" fill="#fff" stroke="#378add" stroke-width="0.5"/>
+<text x="72" y="225" font-size="13" font-weight="600" fill="#2c2c2a" dominant-baseline="central">ATT / CS</text>
+<text x="180" y="225" font-size="12" fill="#5f5e5a" dominant-baseline="central">片选</text>
+<rect x="60" y="248" width="220" height="38" rx="8" fill="#fcebeb" stroke="#e24b4a" stroke-width="0.5"/>
+<text x="72" y="271" font-size="13" font-weight="600" fill="#a32d2d" dominant-baseline="central">VDD</text>
+<text x="180" y="271" font-size="12" fill="#a32d2d" dominant-baseline="central">电源 3.3V</text>
+<rect x="60" y="294" width="220" height="22" rx="8" fill="#f1efe8" stroke="#888780" stroke-width="0.5"/>
+<text x="72" y="309" font-size="13" font-weight="600" fill="#2c2c2a" dominant-baseline="central">GND</text>
+<text x="180" y="309" font-size="12" fill="#5f5e5a" dominant-baseline="central">地</text>
+</g>
+<rect x="400" y="24" width="240" height="300" rx="12" fill="#eaf3de" stroke="#3b6d11" stroke-width="0.5"/>
+<text x="420" y="48" font-family="sans-serif" font-size="14" font-weight="600" fill="#27500a">Blue Pill（左排连续 4 针）</text>
+<g font-family="sans-serif">
+<rect x="420" y="64" width="200" height="38" rx="8" fill="#fff" stroke="#639922" stroke-width="0.5"/>
+<text x="432" y="87" font-size="13" font-weight="600" fill="#2c2c2a" dominant-baseline="central">PA6</text>
+<text x="532" y="87" font-size="12" fill="#5f5e5a" dominant-baseline="central">MISO · 读 DAT</text>
+<rect x="420" y="110" width="200" height="38" rx="8" fill="#fff" stroke="#639922" stroke-width="0.5"/>
+<text x="432" y="133" font-size="13" font-weight="600" fill="#2c2c2a" dominant-baseline="central">PA7</text>
+<text x="532" y="133" font-size="12" fill="#5f5e5a" dominant-baseline="central">MOSI · 发 CMD</text>
+<rect x="420" y="156" width="200" height="38" rx="8" fill="#fff" stroke="#639922" stroke-width="0.5"/>
+<text x="432" y="179" font-size="13" font-weight="600" fill="#2c2c2a" dominant-baseline="central">PA5</text>
+<text x="532" y="179" font-size="12" fill="#5f5e5a" dominant-baseline="central">SCK · 时钟</text>
+<rect x="420" y="202" width="200" height="38" rx="8" fill="#fff" stroke="#639922" stroke-width="0.5"/>
+<text x="432" y="225" font-size="13" font-weight="600" fill="#2c2c2a" dominant-baseline="central">PB0</text>
+<text x="532" y="225" font-size="12" fill="#5f5e5a" dominant-baseline="central">CS · 片选</text>
+<rect x="420" y="248" width="200" height="38" rx="8" fill="#fcebeb" stroke="#e24b4a" stroke-width="0.5"/>
+<text x="432" y="271" font-size="13" font-weight="600" fill="#a32d2d" dominant-baseline="central">3V3</text>
+<text x="532" y="271" font-size="12" fill="#a32d2d" dominant-baseline="central">电源</text>
+<rect x="420" y="294" width="200" height="22" rx="8" fill="#f1efe8" stroke="#888780" stroke-width="0.5"/>
+<text x="432" y="309" font-size="13" font-weight="600" fill="#2c2c2a" dominant-baseline="central">GND</text>
+<text x="532" y="309" font-size="12" fill="#5f5e5a" dominant-baseline="central">地</text>
+</g>
+<line x1="280" y1="83" x2="420" y2="83" stroke="#185fa5" stroke-width="1.5" marker-end="url(#arr2)"/>
+<line x1="280" y1="129" x2="420" y2="129" stroke="#185fa5" stroke-width="1.5" marker-end="url(#arr2)"/>
+<line x1="280" y1="175" x2="420" y2="175" stroke="#185fa5" stroke-width="1.5" marker-end="url(#arr2)"/>
+<line x1="280" y1="221" x2="420" y2="221" stroke="#185fa5" stroke-width="1.5" marker-end="url(#arr2)"/>
+<line x1="280" y1="267" x2="420" y2="267" stroke="#e24b4a" stroke-width="1.5" marker-end="url(#arr2)"/>
+<line x1="280" y1="305" x2="420" y2="305" stroke="#888780" stroke-width="1.5" marker-end="url(#arr2)"/>
+<rect x="40" y="336" width="600" height="16" rx="8" fill="none"/>
+</svg>
