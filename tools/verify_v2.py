@@ -62,7 +62,29 @@ def find_nm():
     return None
 
 
-def pick_elf():
+def elf_reset(elf):
+    """读同名 .bin 的向量表第 2 个字，返回不带 Thumb 位的 Reset 地址。
+
+    用 .bin 而不是 ELF 的 entry，是因为 .bin 和我们烧进板子的东西是
+    同一个文件，比对起来没有中间环节。
+    """
+    b = os.path.splitext(elf)[0] + '.bin'
+    try:
+        d = open(b, 'rb').read(8)
+    except OSError:
+        return None
+    if len(d) < 8:
+        return None
+    return int.from_bytes(d[4:8], 'little') & ~1
+
+
+def pick_elf(board_reset=None):
+    """选 ELF。
+
+    不能只按"最新那个"选：编过一次 --servotest 之后，build 目录里最新的
+    ELF 是舵机自检固件，它根本没有 g_debug，脚本会退回内置地址乱读。
+    所以有板上的 Reset 时，优先挑 .bin 向量表能对上的那一份。
+    """
     if '--elf' in sys.argv:
         return sys.argv[sys.argv.index('--elf') + 1]
     build = os.path.join(flash.ROOT, 'firmware_v2', 'build')
@@ -73,7 +95,10 @@ def pick_elf():
         return None
     if not elfs:
         return None
-    # 取最新的那个：谁刚编完就读谁，避免读了上一次编译的地址
+    if board_reset is not None:
+        hit = [e for e in elfs if elf_reset(e) == (board_reset & ~1)]
+        if hit:
+            return max(hit, key=os.path.getmtime)
     return max(elfs, key=os.path.getmtime)
 
 
@@ -90,11 +115,11 @@ def elf_symbols(elf, nm):
     return sym
 
 
-def resolve_symbols():
+def resolve_symbols(board_reset=None):
     """返回 (g_debug, g_ps2_last_length, g_ps2_last_bytes, 说明文字)"""
     global G_DEBUG, G_LEN, G_BYTES, G_PS2
     nm = find_nm()
-    elf = pick_elf()
+    elf = pick_elf(board_reset)
     if not nm or not elf or not os.path.exists(elf):
         return G_DEBUG, G_LEN, G_BYTES, '找不到 nm 或 ELF，用内置地址（可能与固件不符）'
     sym = elf_symbols(elf, nm)
@@ -131,7 +156,7 @@ def read_mem(oc, scr, addr, words):
     return data, out
 
 
-def check_firmware(oc, scr):
+def check_firmware(oc, scr, board_reset=None):
     """比对板上的 Reset 向量和 ELF 里的 Reset_Handler。
 
     这一步不能省。读内存诊断的前提是"板上跑的正是这份 ELF"，
@@ -141,16 +166,18 @@ def check_firmware(oc, scr):
     两个 500 的速度值被当成了帧计数）。
     """
     nm = find_nm()
-    elf = pick_elf()
+    elf = pick_elf(board_reset)
     if not (nm and elf and os.path.exists(elf)):
         return None, None, None
     exp = elf_symbols(elf, nm).get('Reset_Handler')
     if exp is None:
         return None, None, None
-    d, _ = read_mem(oc, scr, 0x08000000, 2)
-    if len(d) < 8:
-        return None, None, exp
-    brd = int.from_bytes(bytes(d[4:8]), 'little')
+    if board_reset is None:
+        d, _ = read_mem(oc, scr, 0x08000000, 2)
+        if len(d) < 8:
+            return None, None, exp
+        board_reset = int.from_bytes(bytes(d[4:8]), 'little')
+    brd = board_reset
     # 向量表里的 Reset 带 Thumb 位（最低位恒为 1），符号表里的地址不带，
     # 所以只比高位，不能直接相等比较。
     return ((brd & ~1) == (exp & ~1)), brd, exp
@@ -244,12 +271,17 @@ def main():
     print('=' * 58)
     print(' firmware_v2 运行状态（直接读芯片内存，不看灯）')
     print('=' * 58)
-    _, _, _, note = resolve_symbols()
+
+    # 先读板上的 Reset，再用它去挑对应的 ELF —— 顺序不能反。
+    d0, _ = read_mem(oc, scr, 0x08000000, 2)
+    brd = int.from_bytes(bytes(d0[4:8]), 'little') if len(d0) >= 8 else None
+    _, _, _, note = resolve_symbols(brd)
+    print(' 板上 Reset = %s' % ('0x%08X' % brd if brd else '(读不到)'))
     print(' %s' % note)
     print(' g_debug=0x%08X  last_length=0x%08X  last_bytes=0x%08X'
           % (G_DEBUG, G_LEN, G_BYTES))
 
-    ok, brd, exp = check_firmware(oc, scr)
+    ok, brd, exp = check_firmware(oc, scr, brd)
     if ok is False:
         print()
         print('[!] 板上固件和这份 ELF 不是同一版')
